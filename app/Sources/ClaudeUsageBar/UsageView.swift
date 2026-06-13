@@ -42,7 +42,7 @@ struct UsageView: View {
         case .fetchError:
             MessageCard(text: "Couldn't refresh limits — will retry.", tint: Palette.inkDim)
         case .authError:
-            MessageCard(text: "Sign in to Claude Code (run claude, then /login).", tint: Palette.red)
+            MessageCard(text: "Sign in to Claude Code (run claude, then /login).", tint: Palette.color(for: .high))
         }
     }
 
@@ -90,7 +90,7 @@ struct LimitCard: View {
     let limit: Limit
 
     private var severity: Severity { severityLevel(limit.utilization) }
-    private var tint: Color { color(for: severity) }
+    private var tint: Color { Palette.color(for: severity) }
 
     var body: some View {
         HStack(spacing: 10) {

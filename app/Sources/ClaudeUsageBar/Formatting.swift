@@ -1,20 +1,5 @@
 import Foundation
-import SwiftUI
 import UsageCore
-
-/// Map a UsageCore Severity to a high-contrast palette color.
-func color(for severity: Severity) -> Color {
-    switch severity {
-    case .low:
-        return Palette.clay
-    case .mid:
-        return Palette.burnt
-    case .high:
-        return Palette.red
-    case .unknown:
-        return Palette.gray
-    }
-}
 
 /// Reset time in the /usage panel style, in Europe/Copenhagen:
 ///   today  -> "Resets 2:10pm (Europe/Copenhagen)"

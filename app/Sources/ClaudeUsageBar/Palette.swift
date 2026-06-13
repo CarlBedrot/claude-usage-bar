@@ -1,22 +1,51 @@
 import SwiftUI
+import AppKit
+import UsageCore
 
-/// Fixed warm "cream + ink" palette. Deliberately not appearance-adaptive: the
-/// popover always renders cream with dark text in both light and dark mode, with
-/// high-contrast severity colors that read clearly on cream.
+/// Fixed warm "cream + ink" palette, the single source of truth for colors.
+/// Deliberately not appearance-adaptive: the popover renders cream with dark
+/// text in both light and dark mode, with high-contrast severity colors.
 enum Palette {
-    static func rgb(_ r: Int, _ g: Int, _ b: Int) -> Color {
-        Color(red: Double(r) / 255, green: Double(g) / 255, blue: Double(b) / 255)
+    // sRGB component triples — defined once, used for both SwiftUI and AppKit.
+    private static let creamRGB  = (244.0, 241.0, 234.0)   // #F4F1EA — background
+    private static let panelRGB  = (233.0, 227.0, 214.0)   // #E9E3D6 — token card
+    private static let inkRGB    = (31.0, 27.0, 22.0)      // #1F1B16 — primary text
+    private static let inkDimRGB = (122.0, 112.0, 96.0)    // #7A7060 — secondary text
+    private static let clayRGB   = (217.0, 119.0, 87.0)    // #D97757 — low / Claude clay
+    private static let burntRGB  = (190.0, 74.0, 31.0)     // #BE4A1F — mid
+    private static let brickRGB  = (179.0, 38.0, 30.0)     // #B3261E — high
+    private static let grayRGB   = (138.0, 130.0, 118.0)   // #8A8276 — no data
+
+    static let cream  = color(creamRGB)
+    static let panel  = color(panelRGB)
+    static let ink    = color(inkRGB)
+    static let inkDim = color(inkDimRGB)
+    static let clay   = color(clayRGB)
+
+    /// SwiftUI color for a severity — used in the popover cards.
+    static func color(for severity: Severity) -> Color {
+        color(rgb(for: severity))
     }
 
-    static let cream = rgb(244, 241, 234)   // #F4F1EA — popover background
-    static let panel = rgb(233, 227, 214)   // #E9E3D6 — neutral token card
-    static let ink = rgb(31, 27, 22)        // #1F1B16 — primary text (warm black)
-    static let inkDim = rgb(122, 112, 96)   // #7A7060 — secondary text
+    /// AppKit color for a severity — used for the menu bar title.
+    static func nsColor(for severity: Severity) -> NSColor {
+        guard severity != .unknown else {
+            return .secondaryLabelColor
+        }
+        let c = rgb(for: severity)
+        return NSColor(srgbRed: c.0 / 255, green: c.1 / 255, blue: c.2 / 255, alpha: 1)
+    }
 
-    // Anthropic / Claude palette: clay is the signature accent. Severity
-    // escalates within warm tones (clay -> burnt -> brick) — no green.
-    static let clay = rgb(217, 119, 87)     // #D97757 — Claude clay (low / primary)
-    static let burnt = rgb(190, 74, 31)     // #BE4A1F — mid severity
-    static let red = rgb(179, 38, 30)       // #B3261E — high severity
-    static let gray = rgb(138, 130, 118)    // #8A8276 — no data
+    private static func rgb(for severity: Severity) -> (Double, Double, Double) {
+        switch severity {
+        case .low: return clayRGB
+        case .mid: return burntRGB
+        case .high: return brickRGB
+        case .unknown: return grayRGB
+        }
+    }
+
+    private static func color(_ c: (Double, Double, Double)) -> Color {
+        Color(red: c.0 / 255, green: c.1 / 255, blue: c.2 / 255)
+    }
 }

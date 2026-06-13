@@ -82,21 +82,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let attributed = NSAttributedString(
             string: text,
-            attributes: [.foregroundColor: nsColor(for: severity)])
+            attributes: [.foregroundColor: Palette.nsColor(for: severity)])
         button.attributedTitle = attributed
-    }
-
-    private func nsColor(for severity: Severity) -> NSColor {
-        switch severity {
-        case .low:
-            return NSColor(srgbRed: 217 / 255, green: 119 / 255, blue: 87 / 255, alpha: 1)   // clay
-        case .mid:
-            return NSColor(srgbRed: 190 / 255, green: 74 / 255, blue: 31 / 255, alpha: 1)     // burnt
-        case .high:
-            return NSColor(srgbRed: 179 / 255, green: 38 / 255, blue: 30 / 255, alpha: 1)     // brick
-        case .unknown:
-            return .secondaryLabelColor
-        }
     }
 }
 
