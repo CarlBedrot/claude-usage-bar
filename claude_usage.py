@@ -42,6 +42,14 @@ LIMIT_LABELS = (
     ("seven_day_sonnet", "Sonnet (7d)"),
 )
 MENU_LIMIT_KEYS = ("five_hour", "seven_day")
+LABEL_WIDTH = max(len(label) for _key, label in LIMIT_LABELS)
+
+# Dropdown styling. DIM greys out supporting detail so headline numbers pop;
+# COST_COLOR is macOS system orange.
+DIM = "#8E8E93"
+COST_COLOR = "#FF9F0A"
+DETAIL = " | color={} font=Menlo size=11".format(DIM)
+HEADER = " | color={} size=11".format(DIM)
 
 # USD per MTok, exact-match on full model id strings as they appear in
 # transcripts. cache_read = 0.1 x input, cache_write = 1.25 x input (5m tier).
@@ -334,17 +342,20 @@ def render_slot(limit: Limit) -> str:
     return "{}%".format(round_percent(limit["utilization"]))
 
 
+def severity_color(utilization: float) -> str:
+    if utilization < 50:
+        return "green"
+    if utilization < 80:
+        return "yellow"
+    return "red"
+
+
 def menu_color(limits: Limits) -> str:
     utilizations = [limits[key]["utilization"] for key in MENU_LIMIT_KEYS
                     if limits.get(key) is not None]
     if not utilizations:
         return "gray"
-    worst = max(utilizations)
-    if worst < 50:
-        return "green"
-    if worst < 80:
-        return "yellow"
-    return "red"
+    return severity_color(max(utilizations))
 
 
 def render_menu_line(status: str, limits: Optional[Limits]) -> str:
@@ -363,15 +374,16 @@ def render_bar(utilization: float) -> str:
 
 
 def render_limit_rows(limits: Limits) -> List[str]:
-    rows = []
+    rows = ["Limits" + HEADER]
     for key, label in LIMIT_LABELS:
         limit = limits.get(key)
         if limit is None:
             continue
+        util = limit["utilization"]
         reset_local = limit["resets_at"].astimezone(TZ).strftime("%a %H:%M")
-        rows.append("{} {} {}% · resets {} | font=Menlo".format(
-            label, render_bar(limit["utilization"]),
-            round_percent(limit["utilization"]), reset_local))
+        rows.append("{}  {}  {:>3}%   resets {} | color={} font=Menlo".format(
+            label.ljust(LABEL_WIDTH), render_bar(util), round_percent(util),
+            reset_local, severity_color(util)))
     return rows
 
 
@@ -413,10 +425,10 @@ def render_stats_rows(today_by_model: PerModelCounts, session_totals: Counts) ->
     today_totals = sum_model_counts(today_by_model)
     return [
         "{:,} tokens today".format(sum(today_totals.values())),
-        render_breakdown(today_totals),
-        render_cost_row(today_by_model),
+        render_breakdown(today_totals) + DETAIL,
+        render_cost_row(today_by_model) + " | color=" + COST_COLOR,
         "Latest session: {:,} tokens".format(sum(session_totals.values())),
-        render_breakdown(session_totals),
+        render_breakdown(session_totals) + DETAIL,
     ]
 
 
@@ -431,7 +443,7 @@ def render_output(status: str, limits: Optional[Limits], cache_state: str,
     lines.append("---")
     lines.extend(render_stats_rows(today_by_model, session_totals))
     lines.append("---")
-    lines.append("Refresh | refresh=true")
+    lines.append("Refresh | refresh=true sfimage=arrow.clockwise")
     return "\n".join(lines)
 
 
