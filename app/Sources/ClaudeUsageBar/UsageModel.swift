@@ -7,11 +7,10 @@ import UsageCore
 struct UsageSnapshot {
     var state: UsageState
     var todayByModel: PerModelCounts
-    var activeSessions: ActiveSessions
+    var activeSessions: [SessionSummary]
 
     static let empty = UsageSnapshot(
-        state: .fetchError, todayByModel: [:],
-        activeSessions: ActiveSessions(count: 0, totals: zeroCounts()))
+        state: .fetchError, todayByModel: [:], activeSessions: [])
 }
 
 /// Outcome of a limits fetch, before it's reconciled with the last-known value.
@@ -73,7 +72,7 @@ final class UsageModel: ObservableObject {
         }
     }
 
-    private func apply(outcome: LimitsOutcome, today: PerModelCounts, active: ActiveSessions) {
+    private func apply(outcome: LimitsOutcome, today: PerModelCounts, active: [SessionSummary]) {
         let state: UsageState
         switch outcome {
         case .ok(let limits):
@@ -95,7 +94,7 @@ final class UsageModel: ObservableObject {
         scanRoot: URL,
         fetcher: (String) throws -> Limits,
         keychainReader: () throws -> String,
-        now: Date) -> (LimitsOutcome, PerModelCounts, ActiveSessions) {
+        now: Date) -> (LimitsOutcome, PerModelCounts, [SessionSummary]) {
 
         let today = scanToday(root: scanRoot, now: now)
         let active = scanActiveSessions(root: scanRoot, now: now)

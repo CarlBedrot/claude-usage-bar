@@ -72,14 +72,18 @@ public enum UsageState: Equatable {
     case authError
 }
 
-/// Summed token usage across all recently-active sessions, with how many there
-/// are — so concurrent sessions are all reflected, not just the newest one.
-public struct ActiveSessions: Equatable {
-    public let count: Int
-    public let totals: Counts
+/// One recently-active session: its token usage plus a human label (the working
+/// directory, and branch when it helps tell two sessions apart).
+public struct SessionSummary: Equatable, Identifiable {
+    public let id: String          // transcript path — stable across refreshes
+    public let label: String
+    public let counts: Counts
+    public let lastModified: Date
 
-    public init(count: Int, totals: Counts) {
-        self.count = count
-        self.totals = totals
+    public init(id: String, label: String, counts: Counts, lastModified: Date) {
+        self.id = id
+        self.label = label
+        self.counts = counts
+        self.lastModified = lastModified
     }
 }

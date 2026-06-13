@@ -60,6 +60,11 @@ func total(_ counts: Counts) -> Int {
     counts.input + counts.output + counts.cacheRead + counts.cacheWrite
 }
 
+/// Combined tokens across active-session summaries.
+func activeTotal(_ sessions: [SessionSummary]) -> Int {
+    sessions.reduce(0) { $0 + total($1.counts) }
+}
+
 // Europe/Copenhagen calendar so "today" / "yesterday" match the scan timezone.
 let cph = TimeZone(identifier: "Europe/Copenhagen")!
 var cphCalendar: Calendar = {
@@ -180,7 +185,7 @@ do {
     ], mtime: old)
     let active = scanActiveSessions(root: root, now: now, windowSeconds: window)
     // 2 active sessions, summed with their subagents: 10+5+100+50 = 165.
-    check("active_sessions_sum", active.count == 2 && total(active.totals) == 165)
+    check("active_sessions_sum", active.count == 2 && activeTotal(active) == 165)
 }
 
 // --- Test 8: subagent_not_counted_as_session ---------------------------------
@@ -197,7 +202,7 @@ do {
         usageEntry(id: "sub", model: "m", timestamp: recent, input: 999),
     ], mtime: recent)
     let active = scanActiveSessions(root: root, now: now, windowSeconds: 3 * 3600)
-    check("subagent_not_counted_as_session", active.count == 1 && total(active.totals) == 20)
+    check("subagent_not_counted_as_session", active.count == 1 && activeTotal(active) == 20)
 }
 
 // --- Test 9: entry_without_timestamp -----------------------------------------
@@ -211,7 +216,26 @@ do {
     let todayCounts = total(scanToday(root: root, now: now)["m"] ?? zeroCounts())
     let active = scanActiveSessions(root: root, now: now, windowSeconds: 3 * 3600)
     // Today counts only the dated entry; an active session counts both.
-    check("entry_without_timestamp", todayCounts == 4 && active.count == 1 && total(active.totals) == 10)
+    check("entry_without_timestamp", todayCounts == 4 && active.count == 1 && activeTotal(active) == 10)
+}
+
+// --- Test 9b: session_label (folder, with branch when not main/HEAD) ----------
+
+do {
+    let root = makeTempDir("label")
+    let recentA = now.addingTimeInterval(-1 * 3600)
+    let recentB = now.addingTimeInterval(-2 * 3600)
+    let mainLine = "{\"cwd\":\"/x/proj-main\",\"gitBranch\":\"main\","
+        + "\"message\":{\"id\":\"m1\",\"model\":\"m\",\"usage\":{\"input_tokens\":1,"
+        + "\"output_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":0}}}"
+    let devLine = "{\"cwd\":\"/x/proj-dev\",\"gitBranch\":\"feature/foo\","
+        + "\"message\":{\"id\":\"d1\",\"model\":\"m\",\"usage\":{\"input_tokens\":1,"
+        + "\"output_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":0}}}"
+    writeFile(root.appendingPathComponent("p/a.jsonl"), [mainLine], mtime: recentA)
+    writeFile(root.appendingPathComponent("p/b.jsonl"), [devLine], mtime: recentB)
+    let active = scanActiveSessions(root: root, now: now, windowSeconds: 3 * 3600)
+    // Sorted newest first: a (main, branch suppressed) then b (branch shown).
+    check("session_label", active.map { $0.label } == ["proj-main", "proj-dev · feature/foo"])
 }
 
 // --- Test 10: truncated_line_skipped -----------------------------------------

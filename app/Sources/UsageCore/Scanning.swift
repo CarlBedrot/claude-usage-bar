@@ -153,27 +153,46 @@ func activeSessionTranscripts(root: URL, now: Date, windowSeconds: TimeInterval)
     }
 }
 
-/// How many sessions are recently active and their combined token usage (each
-/// session plus its own subagents), deduplicated by message.id across all of
-/// them — so concurrent sessions are all counted, not just the newest one.
+/// One summary per recently-active session — its tokens (session + its own
+/// subagents, deduped by message.id within the session) and a folder/branch
+/// label — newest first. Concurrent sessions are all included, not just one.
 public func scanActiveSessions(root: URL, now: Date,
-                               windowSeconds: TimeInterval = activeSessionWindowSeconds) -> ActiveSessions {
-    let sessions = activeSessionTranscripts(root: root, now: now, windowSeconds: windowSeconds)
-    var files: [URL] = []
-    for session in sessions {
-        files.append(session)
-        files.append(contentsOf: subagentFiles(for: session))
-    }
-    var totals = zeroCounts()
-    var seenIds: Set<String> = []
-    for path in files {
-        for entry in readEntries(path: path) {
-            guard let usage = extractMessageUsage(entry), !seenIds.contains(usage.messageId) else {
-                continue
+                               windowSeconds: TimeInterval = activeSessionWindowSeconds) -> [SessionSummary] {
+    var summaries: [SessionSummary] = []
+    for session in activeSessionTranscripts(root: root, now: now, windowSeconds: windowSeconds) {
+        var totals = zeroCounts()
+        var seenIds: Set<String> = []
+        var cwd: String?
+        var branch: String?
+        for path in [session] + subagentFiles(for: session) {
+            for entry in readEntries(path: path) {
+                if cwd == nil { cwd = entry["cwd"] as? String }
+                if branch == nil { branch = entry["gitBranch"] as? String }
+                guard let usage = extractMessageUsage(entry), !seenIds.contains(usage.messageId) else {
+                    continue
+                }
+                seenIds.insert(usage.messageId)
+                totals.add(usage.counts)
             }
-            seenIds.insert(usage.messageId)
-            totals.add(usage.counts)
         }
+        summaries.append(SessionSummary(
+            id: session.path,
+            label: sessionLabel(cwd: cwd, branch: branch, transcript: session),
+            counts: totals,
+            lastModified: fileModificationDate(session)))
     }
-    return ActiveSessions(count: sessions.count, totals: totals)
+    return summaries.sorted { $0.lastModified > $1.lastModified }
+}
+
+/// Folder name from the session's cwd, with the branch appended when it adds
+/// signal (not main/HEAD). Falls back to a short transcript id if cwd is absent.
+func sessionLabel(cwd: String?, branch: String?, transcript: URL) -> String {
+    guard let cwd = cwd, !cwd.isEmpty else {
+        return String(transcript.deletingPathExtension().lastPathComponent.prefix(8))
+    }
+    let folder = URL(fileURLWithPath: cwd).lastPathComponent
+    if let branch = branch, !branch.isEmpty, branch != "HEAD", branch != "main", branch != "master" {
+        return "\(folder) · \(branch)"
+    }
+    return folder
 }

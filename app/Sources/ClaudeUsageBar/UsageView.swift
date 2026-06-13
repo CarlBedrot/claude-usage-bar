@@ -56,8 +56,7 @@ struct UsageView: View {
             StatsCard(title: "\(grouped(today.total)) tokens",
                       detail: breakdownLine(today))
             sectionHeader("Active sessions · \(active.count)")
-            StatsCard(title: "\(grouped(active.totals.total)) tokens",
-                      detail: breakdownLine(active.totals))
+            ActiveSessionsCard(sessions: active)
         }
     }
 
@@ -137,6 +136,66 @@ struct ProgressBar: View {
             }
         }
         .frame(height: 6)
+    }
+}
+
+/// Combined active-session usage; tap to expand a per-session breakdown
+/// (folder/branch label + token count). Collapses to just the total.
+struct ActiveSessionsCard: View {
+    let sessions: [SessionSummary]
+    @State private var expanded = false
+
+    private var total: Counts {
+        sessions.reduce(into: zeroCounts()) { $0.add($1.counts) }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                if !sessions.isEmpty { expanded.toggle() }
+            } label: {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(grouped(total.total)) tokens")
+                            .font(.system(.body, design: .rounded).bold())
+                            .foregroundColor(Palette.ink)
+                        Text(breakdownLine(total))
+                            .font(.caption)
+                            .foregroundColor(Palette.inkDim)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                    if !sessions.isEmpty {
+                        Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                            .font(.caption)
+                            .foregroundColor(Palette.inkDim)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+
+            if expanded {
+                Divider()
+                ForEach(sessions) { session in
+                    HStack {
+                        Text(session.label)
+                            .font(.caption)
+                            .foregroundColor(Palette.ink)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer()
+                        Text(compact(session.counts.total))
+                            .font(.caption)
+                            .foregroundColor(Palette.inkDim)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Palette.panel))
     }
 }
 
