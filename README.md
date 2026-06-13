@@ -33,13 +33,17 @@ brew install swiftbar
 ```
 
 1. Launch SwiftBar and pick a plugin folder when prompted (e.g. `~/Documents/SwiftBar`).
-2. Symlink the plugin into it — the `1m` in the symlink name is SwiftBar's refresh
+2. Symlink the plugin into it — the `30s` in the symlink name is SwiftBar's refresh
    interval; the repo file keeps a valid module name so tests can import it:
 
    ```bash
    ln -s ~/Code/personal/claude-usage-bar/claude_usage.py \
-         ~/Documents/SwiftBar/claude_usage.1m.py
+         ~/Documents/SwiftBar/claude_usage.30s.py
    ```
+
+   Adjust the interval to taste (`1m`, `15s`, etc.). Shorter intervals poll the
+   usage endpoint more often and are likelier to hit a rate limit (HTTP 429) — the
+   plugin handles this gracefully by showing the last cached values with their age.
 
 3. **First run:** macOS will prompt for Keychain access to the
    `Claude Code-credentials` item. Click **Always Allow**, or SwiftBar's background
