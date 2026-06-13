@@ -82,7 +82,7 @@ struct ClawdPeeker: View {
 
     private let hiddenOffset: CGFloat = -46
     private let peekOffset: CGFloat = -7
-    private let peekTimer = Timer.publish(every: 9, on: .main, in: .common).autoconnect()
+    private let peekTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ClawdView(blink: blink)
