@@ -22,12 +22,17 @@ enum Palette {
     static let inkDim = color(inkDimRGB)
     static let clay   = color(clayRGB)
 
-    /// SwiftUI color for a severity — used in the popover cards.
+    /// SwiftUI color for a severity — used in the popover cards. The popover is
+    /// a fixed cream theme, so `.unknown` uses the fixed palette gray. (In
+    /// practice `.unknown` never reaches a card: limit cards grade real numbers
+    /// and the auth card asks for `.high` explicitly.)
     static func color(for severity: Severity) -> Color {
         color(rgb(for: severity))
     }
 
-    /// AppKit color for a severity — used for the menu bar title.
+    /// AppKit color for the menu bar title. The title sits on the system menu
+    /// bar (adaptive), so `.unknown` uses the adaptive `secondaryLabelColor`
+    /// rather than the popover's fixed gray.
     static func nsColor(for severity: Severity) -> NSColor {
         guard severity != .unknown else {
             return .secondaryLabelColor
