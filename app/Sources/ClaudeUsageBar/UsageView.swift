@@ -52,7 +52,7 @@ struct UsageView: View {
             StatsCard(
                 title: "\(grouped(todayTotals.total)) tokens today",
                 detail: breakdownLine(todayTotals),
-                costRow: costRow(perModel: model.snapshot.todayByModel))
+                costRow: nil)
             sectionHeader("Latest session")
             StatsCard(
                 title: "\(grouped(session.total)) tokens",
@@ -109,9 +109,10 @@ struct LimitCard: View {
                         .foregroundColor(tint)
                 }
                 ProgressBar(fraction: min(limit.utilization, 100) / 100, tint: tint)
-                Text("resets \(formatResetTime(limit.resetsAt))")
+                Text(formatReset(limit.resetsAt))
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(10)
