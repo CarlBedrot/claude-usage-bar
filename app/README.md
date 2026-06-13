@@ -1,9 +1,9 @@
 # Claude Usage Bar — native macOS app
 
 A native SwiftUI menu-bar agent showing Claude Code session/week limit
-utilization, today's deduplicated transcript token counts with estimated cost,
-and latest-session stats. This supersedes the SwiftBar Python plugin at the repo
-root (which is kept as a zero-dependency fallback) by rendering a proper
+utilization, today's deduplicated transcript token counts, and combined usage
+across currently-active sessions. This supersedes the SwiftBar Python plugin at
+the repo root (which is kept as a zero-dependency fallback) by rendering a proper
 card-based popover instead of plain menu text.
 
 The data layer (`UsageCore`) is a 1:1 Swift port of `../claude_usage.py` — same

@@ -154,41 +154,50 @@ do {
     check("today_excludes_old_mtime", per.isEmpty)
 }
 
-// --- Test 7: latest_session_with_subagents -----------------------------------
+// --- Test 7: active_sessions_sum (concurrent sessions + subagents + window) ---
 
 do {
-    let root = makeTempDir("latest-sub")
-    let older = now.addingTimeInterval(-5 * 3600)
-    let newer = now.addingTimeInterval(-1 * 3600)
+    let root = makeTempDir("active-sum")
+    let window: TimeInterval = 3 * 3600
+    let recentA = now.addingTimeInterval(-1 * 3600)
+    let recentB = now.addingTimeInterval(-2 * 3600)
+    let old = now.addingTimeInterval(-5 * 3600)
+    writeFile(root.appendingPathComponent("proj/a.jsonl"), [
+        usageEntry(id: "a", model: "m", timestamp: recentA, input: 10),
+    ], mtime: recentA)
+    writeFile(root.appendingPathComponent("proj/a/subagents/sa.jsonl"), [
+        usageEntry(id: "sa", model: "m", timestamp: recentA, input: 5),
+    ], mtime: recentA)
+    writeFile(root.appendingPathComponent("proj/b.jsonl"), [
+        usageEntry(id: "b", model: "m", timestamp: recentB, input: 100),
+    ], mtime: recentB)
+    writeFile(root.appendingPathComponent("proj/b/subagents/sb.jsonl"), [
+        usageEntry(id: "sb", model: "m", timestamp: recentB, input: 50),
+    ], mtime: recentB)
+    // Outside the window → excluded from both count and totals.
     writeFile(root.appendingPathComponent("proj/old.jsonl"), [
-        usageEntry(id: "old", model: "m", timestamp: older, input: 1000),
-    ], mtime: older)
-    writeFile(root.appendingPathComponent("proj/new.jsonl"), [
-        usageEntry(id: "new", model: "m", timestamp: newer, input: 10),
-    ], mtime: newer)
-    writeFile(root.appendingPathComponent("proj/new/subagents/a.jsonl"), [
-        usageEntry(id: "newsub", model: "m", timestamp: newer, input: 5),
-    ], mtime: newer)
-    let counts = scanLatestSession(root: root)
-    // session = new.jsonl (10) + its subagents (5) = 15, excludes old session
-    check("latest_session_with_subagents", total(counts) == 15)
+        usageEntry(id: "old", model: "m", timestamp: old, input: 9999),
+    ], mtime: old)
+    let active = scanActiveSessions(root: root, now: now, windowSeconds: window)
+    // 2 active sessions, summed with their subagents: 10+5+100+50 = 165.
+    check("active_sessions_sum", active.count == 2 && total(active.totals) == 165)
 }
 
-// --- Test 8: subagent_never_latest_session -----------------------------------
+// --- Test 8: subagent_not_counted_as_session ---------------------------------
 
 do {
-    let root = makeTempDir("sub-never")
-    let mainMtime = now.addingTimeInterval(-3 * 3600)
-    let subMtime = now.addingTimeInterval(-1 * 3600) // newest overall
+    let root = makeTempDir("sub-not-session")
+    let recent = now.addingTimeInterval(-1 * 3600)
     writeFile(root.appendingPathComponent("proj/main.jsonl"), [
-        usageEntry(id: "main", model: "m", timestamp: mainMtime, input: 20),
-    ], mtime: mainMtime)
-    // A subagent file with the newest mtime — must NOT be chosen as the session.
+        usageEntry(id: "main", model: "m", timestamp: recent, input: 20),
+    ], mtime: recent)
+    // An orphan subagent file (no parent session) must not be counted as a
+    // session nor have its tokens included.
     writeFile(root.appendingPathComponent("proj/other/subagents/sub.jsonl"), [
-        usageEntry(id: "sub", model: "m", timestamp: subMtime, input: 999),
-    ], mtime: subMtime)
-    let counts = scanLatestSession(root: root)
-    check("subagent_never_latest_session", total(counts) == 20)
+        usageEntry(id: "sub", model: "m", timestamp: recent, input: 999),
+    ], mtime: recent)
+    let active = scanActiveSessions(root: root, now: now, windowSeconds: 3 * 3600)
+    check("subagent_not_counted_as_session", active.count == 1 && total(active.totals) == 20)
 }
 
 // --- Test 9: entry_without_timestamp -----------------------------------------
@@ -200,8 +209,9 @@ do {
         usageEntry(id: "nodate", model: "m", timestamp: nil, input: 6),
     ], mtime: now)
     let todayCounts = total(scanToday(root: root, now: now)["m"] ?? zeroCounts())
-    let sessionCounts = total(scanLatestSession(root: root))
-    check("entry_without_timestamp", todayCounts == 4 && sessionCounts == 10)
+    let active = scanActiveSessions(root: root, now: now, windowSeconds: 3 * 3600)
+    // Today counts only the dated entry; an active session counts both.
+    check("entry_without_timestamp", todayCounts == 4 && active.count == 1 && total(active.totals) == 10)
 }
 
 // --- Test 10: truncated_line_skipped -----------------------------------------

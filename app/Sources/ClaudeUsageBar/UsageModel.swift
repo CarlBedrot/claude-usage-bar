@@ -2,14 +2,16 @@ import Foundation
 import SwiftUI
 import UsageCore
 
-/// Everything the popover renders: the two limits plus today/session token sums.
+/// Everything the popover renders: the two limits, today's tokens, and the
+/// combined usage of currently-active sessions.
 struct UsageSnapshot {
     var state: UsageState
     var todayByModel: PerModelCounts
-    var sessionTotals: Counts
+    var activeSessions: ActiveSessions
 
     static let empty = UsageSnapshot(
-        state: .fetchError, todayByModel: [:], sessionTotals: zeroCounts())
+        state: .fetchError, todayByModel: [:],
+        activeSessions: ActiveSessions(count: 0, totals: zeroCounts()))
 }
 
 /// Outcome of a limits fetch, before it's reconciled with the last-known value.
@@ -61,17 +63,17 @@ final class UsageModel: ObservableObject {
         let keychainReader = self.keychainReader
 
         Task.detached(priority: .userInitiated) {
-            let (outcome, today, session) = UsageModel.gather(
+            let (outcome, today, active) = UsageModel.gather(
                 scanRoot: scanRoot, fetcher: fetcher,
                 keychainReader: keychainReader, now: Date())
             await MainActor.run {
-                self.apply(outcome: outcome, today: today, session: session)
+                self.apply(outcome: outcome, today: today, active: active)
                 self.isRefreshing = false
             }
         }
     }
 
-    private func apply(outcome: LimitsOutcome, today: PerModelCounts, session: Counts) {
+    private func apply(outcome: LimitsOutcome, today: PerModelCounts, active: ActiveSessions) {
         let state: UsageState
         switch outcome {
         case .ok(let limits):
@@ -84,7 +86,7 @@ final class UsageModel: ObservableObject {
             // error card if we've never had a successful fetch.
             state = lastLimits.map { .ok($0) } ?? .fetchError
         }
-        snapshot = UsageSnapshot(state: state, todayByModel: today, sessionTotals: session)
+        snapshot = UsageSnapshot(state: state, todayByModel: today, activeSessions: active)
         onUpdate?(snapshot)
     }
 
@@ -93,10 +95,10 @@ final class UsageModel: ObservableObject {
         scanRoot: URL,
         fetcher: (String) throws -> Limits,
         keychainReader: () throws -> String,
-        now: Date) -> (LimitsOutcome, PerModelCounts, Counts) {
+        now: Date) -> (LimitsOutcome, PerModelCounts, ActiveSessions) {
 
         let today = scanToday(root: scanRoot, now: now)
-        let session = scanLatestSession(root: scanRoot)
+        let active = scanActiveSessions(root: scanRoot, now: now)
 
         let outcome: LimitsOutcome
         do {
@@ -107,6 +109,6 @@ final class UsageModel: ObservableObject {
         } catch {
             outcome = .failed
         }
-        return (outcome, today, session)
+        return (outcome, today, active)
     }
 }

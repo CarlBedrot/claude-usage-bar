@@ -16,9 +16,10 @@ full card view.
 
 - **Session (5h)** and **Week (7d)** limit utilization with reset times, straight
   from Claude's OAuth usage endpoint (plan-wide, all devices).
-- **Today** and **latest session** token totals (in / out / cache read / write),
+- **Today** and **active sessions** token totals (in / out / cache read / write),
   read from your local transcripts under `~/.claude/projects/`, deduplicated per
-  message and including subagent transcripts.
+  message and including subagent transcripts. "Active sessions" sums every session
+  with activity in the last ~15 minutes, so concurrent sessions are all counted.
 
 Your token is read from the macOS Keychain (`Claude Code-credentials`) on each
 refresh and is **never logged, cached, or written to disk**.

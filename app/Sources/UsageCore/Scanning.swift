@@ -2,6 +2,10 @@ import Foundation
 
 let subagentDirName = "subagents"
 let todayScanWindowSeconds: TimeInterval = 36 * 3600
+/// A session counts as "active" if its transcript was written this recently.
+/// Kept tight so it reflects sessions running *now*, not every transcript
+/// touched in the last few hours (mtime catches idle/resumed sessions too).
+public let activeSessionWindowSeconds: TimeInterval = 15 * 60
 public let copenhagenTimeZone = TimeZone(identifier: "Europe/Copenhagen")!
 
 /// A usage-bearing entry's extracted fields.
@@ -121,21 +125,13 @@ func accumulateTodayEntry(_ entry: [String: Any], into perModel: inout PerModelC
     perModel[usage.model, default: zeroCounts()].add(usage.counts)
 }
 
-/// Newest non-subagent transcript plus its own subagent transcripts.
-func findLatestSessionFiles(root: URL) -> [URL] {
-    let candidates = jsonlFiles(in: root).filter { url in
-        !relativePathComponents(of: url, under: root).contains(subagentDirName)
-    }
-    guard let latest = candidates.max(by: { fileModificationDate($0) < fileModificationDate($1) }) else {
-        return []
-    }
-    // Subagents live at <parent>/<stem>/subagents/*.jsonl.
-    let stem = latest.deletingPathExtension().lastPathComponent
-    let subagentDir = latest.deletingLastPathComponent()
+/// Subagent transcripts owned by a session: <parent>/<stem>/subagents/*.jsonl.
+func subagentFiles(for session: URL) -> [URL] {
+    let stem = session.deletingPathExtension().lastPathComponent
+    let subagentDir = session.deletingLastPathComponent()
         .appendingPathComponent(stem)
         .appendingPathComponent(subagentDirName)
-    let subagentFiles = jsonlFiles(in: subagentDir)
-    return [latest] + subagentFiles
+    return jsonlFiles(in: subagentDir)
 }
 
 func relativePathComponents(of url: URL, under root: URL) -> [String] {
@@ -148,21 +144,36 @@ func relativePathComponents(of url: URL, under root: URL) -> [String] {
     return Array(urlComponents.dropFirst(rootComponents.count))
 }
 
-/// Total token counts for the latest session, deduplicated by message.id.
-public func scanLatestSession(root: URL) -> Counts {
+/// Non-subagent transcripts modified within the active window — one per session.
+func activeSessionTranscripts(root: URL, now: Date, windowSeconds: TimeInterval) -> [URL] {
+    let cutoff = now.addingTimeInterval(-windowSeconds)
+    return jsonlFiles(in: root).filter { url in
+        !relativePathComponents(of: url, under: root).contains(subagentDirName)
+            && fileModificationDate(url) >= cutoff
+    }
+}
+
+/// How many sessions are recently active and their combined token usage (each
+/// session plus its own subagents), deduplicated by message.id across all of
+/// them — so concurrent sessions are all counted, not just the newest one.
+public func scanActiveSessions(root: URL, now: Date,
+                               windowSeconds: TimeInterval = activeSessionWindowSeconds) -> ActiveSessions {
+    let sessions = activeSessionTranscripts(root: root, now: now, windowSeconds: windowSeconds)
+    var files: [URL] = []
+    for session in sessions {
+        files.append(session)
+        files.append(contentsOf: subagentFiles(for: session))
+    }
     var totals = zeroCounts()
     var seenIds: Set<String> = []
-    for path in findLatestSessionFiles(root: root) {
+    for path in files {
         for entry in readEntries(path: path) {
-            guard let usage = extractMessageUsage(entry) else {
-                continue
-            }
-            if seenIds.contains(usage.messageId) {
+            guard let usage = extractMessageUsage(entry), !seenIds.contains(usage.messageId) else {
                 continue
             }
             seenIds.insert(usage.messageId)
             totals.add(usage.counts)
         }
     }
-    return totals
+    return ActiveSessions(count: sessions.count, totals: totals)
 }

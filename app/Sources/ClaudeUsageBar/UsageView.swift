@@ -50,14 +50,14 @@ struct UsageView: View {
     /// limits fetch (so it stays useful even when the API is rate-limited).
     private var usageSection: some View {
         let today = sumModelCounts(model.snapshot.todayByModel)
-        let session = model.snapshot.sessionTotals
+        let active = model.snapshot.activeSessions
         return VStack(alignment: .leading, spacing: 8) {
             sectionHeader("Today")
             StatsCard(title: "\(grouped(today.total)) tokens",
                       detail: breakdownLine(today))
-            sectionHeader("Latest session")
-            StatsCard(title: "\(grouped(session.total)) tokens",
-                      detail: breakdownLine(session))
+            sectionHeader("Active sessions · \(active.count)")
+            StatsCard(title: "\(grouped(active.totals.total)) tokens",
+                      detail: breakdownLine(active.totals))
         }
     }
 

@@ -71,3 +71,15 @@ public enum UsageState: Equatable {
     case fetchError
     case authError
 }
+
+/// Summed token usage across all recently-active sessions, with how many there
+/// are — so concurrent sessions are all reflected, not just the newest one.
+public struct ActiveSessions: Equatable {
+    public let count: Int
+    public let totals: Counts
+
+    public init(count: Int, totals: Counts) {
+        self.count = count
+        self.totals = totals
+    }
+}
