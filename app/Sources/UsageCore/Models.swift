@@ -64,3 +64,10 @@ public enum UsageError: Error, Equatable {
     case auth
     case fetch
 }
+
+/// Top-level state driving the menu bar title and popover.
+public enum UsageState: Equatable {
+    case ok(Limits)
+    case fetchError
+    case authError
+}

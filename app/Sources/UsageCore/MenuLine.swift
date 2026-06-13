@@ -1,12 +1,5 @@
 import Foundation
 
-/// The top-level state driving the menu bar title and popover.
-public enum UsageState: Equatable {
-    case ok(Limits)
-    case fetchError
-    case authError
-}
-
 func roundPercent(_ utilization: Double) -> Int {
     Int(utilization.rounded())
 }
