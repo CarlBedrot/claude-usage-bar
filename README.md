@@ -1,73 +1,72 @@
 # claude-usage-bar
 
-SwiftBar menu bar plugin that makes Claude Code's two limit numbers (5h session %,
-7d week %) permanently visible, with detail in the dropdown:
+A tiny macOS menu bar app that shows your **Claude Code** usage at a glance — the
+two limits that actually matter (5-hour session, 7-day week), plus today's token
+totals. Clay-on-cream, in Claude's own palette, with a little Clawd mascot that
+peeks in now and then.
 
+The menu bar reads `⚡ 43% · 4%` (session · week), color-coded; click it for the
+full card view.
+
+> Two builds live here: the **native SwiftUI app** (`app/`, the nice one) and a
+> zero-dependency **SwiftBar plugin** (`claude_usage.py`, a lightweight text-menu
+> fallback). Pick one.
+
+## What it shows
+
+- **Session (5h)** and **Week (7d)** limit utilization with reset times, straight
+  from Claude's OAuth usage endpoint (plan-wide, all devices).
+- **Today** and **latest session** token totals (in / out / cache read / write),
+  read from your local transcripts under `~/.claude/projects/`, deduplicated per
+  message and including subagent transcripts.
+
+Your token is read from the macOS Keychain (`Claude Code-credentials`) on each
+refresh and is **never logged, cached, or written to disk**.
+
+## Requirements
+
+- macOS 13+
+- [Claude Code](https://claude.com/claude-code) installed and logged in (the app
+  reads its Keychain credential and transcripts)
+- Xcode Command Line Tools, to build: `xcode-select --install`
+
+## Install (native app)
+
+```bash
+git clone https://github.com/CarlBedrot/claude-usage-bar.git
+cd claude-usage-bar/app
+./build.sh                 # compiles + bundles ClaudeUsageBar.app (no Xcode needed)
+open ClaudeUsageBar.app    # launches it into your menu bar
+./install-login-item.sh    # optional: start automatically at login
 ```
-⚡ 43% · 48%
----
-Session (5h) ████░░░░░░ 43% · resets Sat 04:20
-Week (7d)    █████░░░░░ 48% · resets Mon 16:00
-Sonnet (7d)  ░░░░░░░░░░  0% · resets Mon 16:00
----
-35,602,802 tokens today
-in: 69,872 · out: 198,998 · cache read: 33,598,322 · cache write: 1,735,610
-Cost today: $61.27
-Latest session: 6,009,104 tokens
-...
-```
 
-Limits come from the OAuth usage endpoint (plan-wide, all devices). Today/session
-token stats come from local transcript JSONL under `~/.claude/projects/`, including
-subagent transcripts, deduplicated once per `message.id`. Menu color: green < 50%,
-yellow 50–79%, red ≥ 80%. On fetch failure the menu shows `⚡ —` with the last
-cached values (suppressed once 24h or older); on 401/missing credentials it shows
-`⚡ ⚠` with a sign-in hint.
+**First run:** macOS prompts for Keychain access to `Claude Code-credentials` —
+click **Always Allow**. Because the app is ad-hoc signed for local use, Gatekeeper
+may block the first launch; right-click the app → **Open**, or run
+`xattr -dr com.apple.quarantine ClaudeUsageBar.app`.
 
-Python 3.9 stdlib only — runs on macOS system Python, zero dependencies.
+Run the data-layer tests with `cd app && swift run UsageCoreTests`.
 
-## Setup
+## Install (SwiftBar plugin, lightweight alternative)
+
+Python 3.9 stdlib only — no build step.
 
 ```bash
 brew install swiftbar
+ln -s "$PWD/claude_usage.py" ~/Documents/SwiftBar/claude_usage.1m.py
 ```
 
-1. Launch SwiftBar and pick a plugin folder when prompted (e.g. `~/Documents/SwiftBar`).
-2. Symlink the plugin into it — the `1m` in the symlink name is SwiftBar's refresh
-   interval; the repo file keeps a valid module name so tests can import it:
+(`1m` is the refresh interval; adjust to taste.) Same Keychain "Always Allow" on
+first run. Tests: `/usr/bin/python3 -m unittest`.
 
-   ```bash
-   ln -s ~/Code/personal/claude-usage-bar/claude_usage.py \
-         ~/Documents/SwiftBar/claude_usage.1m.py
-   ```
+## Notes
 
-   Adjust the interval to taste (`30s`, `2m`, etc.). Shorter intervals poll the
-   usage endpoint more often and are likelier to hit a rate limit (HTTP 429) — the
-   plugin handles this gracefully by showing the last cached values with their age.
+- **Rate limits:** the usage endpoint is rate-limited; the app polls every 5 min
+  and refreshes when you open the popover. A transient failure keeps showing the
+  last good limits rather than blanking out.
+- **No cost figure:** if you're on a flat plan (Pro/Max), tokens don't cost you
+  per-use, so the app shows counts, not dollars.
 
-3. **First run:** macOS will prompt for Keychain access to the
-   `Claude Code-credentials` item. Click **Always Allow**, or SwiftBar's background
-   refreshes will be blocked and the menu will show `⚡ ⚠` forever.
+## License
 
-The token is read from the Keychain on each refresh and is never logged, cached,
-or written to disk — only the usage response is cached
-(`~/.cache/claude-usage-bar/last.json`).
-
-## Cost estimate caveat
-
-`Cost today` is an order-of-magnitude indicator, not billing:
-
-- Cache writes blend 5-minute and 1-hour tiers but are priced at the 5m rate.
-- Pricing is a static `PRICING` table in `claude_usage.py`, keyed by exact model id.
-  Tokens from models missing from the table are excluded and the row gets a `≥`
-  prefix (e.g. `≥ $4.20`) — if you see `≥` or `cost n/a (unpriced models)`, the
-  table has gone stale and needs new entries.
-
-## Verify
-
-From the repo root, with the system Python (must be 3.9.x to prove the
-`Z`-timestamp helper works):
-
-```bash
-/usr/bin/python3 -m unittest
-```
+MIT — see [LICENSE](LICENSE).
