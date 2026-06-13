@@ -7,8 +7,9 @@ struct UsageView: View {
     var onQuit: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             limitsSection
+            usageSection
             Divider()
             footer
         }
@@ -32,10 +33,31 @@ struct UsageView: View {
         }
     }
 
+    /// Token usage from local transcripts — always shown, independent of the
+    /// limits fetch (so it stays useful even when the API is rate-limited).
+    private var usageSection: some View {
+        let today = sumModelCounts(model.snapshot.todayByModel)
+        let session = model.snapshot.sessionTotals
+        return VStack(alignment: .leading, spacing: 8) {
+            sectionHeader("Today")
+            StatsCard(title: "\(grouped(today.total)) tokens",
+                      detail: breakdownLine(today))
+            sectionHeader("Latest session")
+            StatsCard(title: "\(grouped(session.total)) tokens",
+                      detail: breakdownLine(session))
+        }
+    }
+
+    private func sectionHeader(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(.caption)
+            .foregroundColor(.secondary)
+    }
+
     private var footer: some View {
         HStack {
             Button {
-                model.refresh()
+                model.refresh(force: true)
             } label: {
                 Label("Refresh", systemImage: "arrow.clockwise")
             }
@@ -101,6 +123,28 @@ struct ProgressBar: View {
             }
         }
         .frame(height: 6)
+    }
+}
+
+/// A token-total card: bold total with a dim in/out/cache breakdown.
+struct StatsCard: View {
+    let title: String
+    let detail: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(.body, design: .rounded).bold())
+            Text(detail)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.secondary.opacity(0.08)))
     }
 }
 

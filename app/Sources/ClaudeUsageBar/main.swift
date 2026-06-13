@@ -2,7 +2,10 @@ import AppKit
 import SwiftUI
 import UsageCore
 
-let refreshIntervalSeconds: TimeInterval = 60
+// Limits cover 5h / 7d windows and move slowly, so poll gently — frequent
+// polling trips the usage endpoint's rate limit (HTTP 429). The popover also
+// refreshes when opened, so you get fresh numbers exactly when you look.
+let refreshIntervalSeconds: TimeInterval = 300
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {

@@ -2,64 +2,111 @@ import Foundation
 import SwiftUI
 import UsageCore
 
-/// Everything the popover renders: just the two usage limits (or an error).
+/// Everything the popover renders: the two limits plus today/session token sums.
 struct UsageSnapshot {
     var state: UsageState
+    var todayByModel: PerModelCounts
+    var sessionTotals: Counts
 
-    static let empty = UsageSnapshot(state: .fetchError)
+    static let empty = UsageSnapshot(
+        state: .fetchError, todayByModel: [:], sessionTotals: zeroCounts())
 }
 
-/// Fetches the usage limits in the background and publishes them on the main actor.
+/// Outcome of a limits fetch, before it's reconciled with the last-known value.
+private enum LimitsOutcome {
+    case ok(Limits)
+    case auth
+    case failed
+}
+
+/// Fetches limits + scans token usage in the background, publishes on the main actor.
 @MainActor
 final class UsageModel: ObservableObject {
     @Published private(set) var snapshot = UsageSnapshot.empty
     @Published private(set) var isRefreshing = false
 
+    /// Last successfully fetched limits, kept so a transient rate-limit (429)
+    /// doesn't blank the cards — we keep showing the most recent good values.
+    private var lastLimits: Limits?
+    private var lastAttempt: Date?
+
+    private let scanRoot: URL
     private let fetcher: (String) throws -> Limits
     private let keychainReader: () throws -> String
 
-    /// Called whenever a fresh snapshot is published, so the status item title
-    /// can be re-rendered.
     var onUpdate: ((UsageSnapshot) -> Void)?
 
-    init(fetcher: @escaping (String) throws -> Limits = fetchUsage,
+    init(scanRoot: URL = defaultScanRoot(),
+         fetcher: @escaping (String) throws -> Limits = fetchUsage,
          keychainReader: @escaping () throws -> String = readToken) {
+        self.scanRoot = scanRoot
         self.fetcher = fetcher
         self.keychainReader = keychainReader
     }
 
-    /// Refresh off the main thread, then publish on the main actor.
-    func refresh() {
+    /// Refresh off the main thread. `force` bypasses the min-interval throttle
+    /// (used by the manual Refresh button); auto-refreshes coalesce.
+    func refresh(force: Bool = false) {
         if isRefreshing {
             return
         }
+        if !force, let last = lastAttempt, Date().timeIntervalSince(last) < 30 {
+            return
+        }
         isRefreshing = true
+        lastAttempt = Date()
 
+        let scanRoot = self.scanRoot
         let fetcher = self.fetcher
         let keychainReader = self.keychainReader
 
         Task.detached(priority: .userInitiated) {
-            let snapshot = UsageModel.buildSnapshot(fetcher: fetcher, keychainReader: keychainReader)
+            let (outcome, today, session) = UsageModel.gather(
+                scanRoot: scanRoot, fetcher: fetcher,
+                keychainReader: keychainReader, now: Date())
             await MainActor.run {
-                self.snapshot = snapshot
+                self.apply(outcome: outcome, today: today, session: session)
                 self.isRefreshing = false
-                self.onUpdate?(snapshot)
             }
         }
     }
 
-    /// Pure assembly of a snapshot — no UI, runs off the main thread.
-    nonisolated static func buildSnapshot(
-        fetcher: (String) throws -> Limits,
-        keychainReader: () throws -> String) -> UsageSnapshot {
+    private func apply(outcome: LimitsOutcome, today: PerModelCounts, session: Counts) {
+        let state: UsageState
+        switch outcome {
+        case .ok(let limits):
+            lastLimits = limits
+            state = .ok(limits)
+        case .auth:
+            state = .authError
+        case .failed:
+            // Keep the last good limits on a transient failure; only show the
+            // error card if we've never had a successful fetch.
+            state = lastLimits.map { .ok($0) } ?? .fetchError
+        }
+        snapshot = UsageSnapshot(state: state, todayByModel: today, sessionTotals: session)
+        onUpdate?(snapshot)
+    }
 
+    /// Pure gather: scan tokens (always) and attempt the limits fetch.
+    nonisolated private static func gather(
+        scanRoot: URL,
+        fetcher: (String) throws -> Limits,
+        keychainReader: () throws -> String,
+        now: Date) -> (LimitsOutcome, PerModelCounts, Counts) {
+
+        let today = scanToday(root: scanRoot, now: now)
+        let session = scanLatestSession(root: scanRoot)
+
+        let outcome: LimitsOutcome
         do {
             let token = try keychainReader()
-            return UsageSnapshot(state: .ok(try fetcher(token)))
+            outcome = .ok(try fetcher(token))
         } catch UsageError.auth {
-            return UsageSnapshot(state: .authError)
+            outcome = .auth
         } catch {
-            return UsageSnapshot(state: .fetchError)
+            outcome = .failed
         }
+        return (outcome, today, session)
     }
 }
