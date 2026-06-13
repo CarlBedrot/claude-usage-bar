@@ -48,7 +48,20 @@ If you are not signed in, the menu bar shows `⚡ ⚠` and the popover says
 
 ## Add as a login item
 
-To start it automatically:
+The easy way — run the installer (writes a LaunchAgent and starts it now):
+
+```bash
+cd app && ./install-login-item.sh
+```
+
+To remove autostart later:
+
+```bash
+launchctl unload ~/Library/LaunchAgents/com.carlbedrot.claude-usage-bar.plist
+rm ~/Library/LaunchAgents/com.carlbedrot.claude-usage-bar.plist
+```
+
+Or do it manually:
 
 System Settings → General → Login Items → **+** → select `ClaudeUsageBar.app`.
 
