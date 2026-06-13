@@ -1,7 +1,7 @@
 import SwiftUI
 import UsageCore
 
-/// The popover contents: limit cards, today/session cards, footer.
+/// The popover contents: the two usage-limit cards and a footer.
 struct UsageView: View {
     @ObservedObject var model: UsageModel
     var onQuit: () -> Void
@@ -9,7 +9,6 @@ struct UsageView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             limitsSection
-            statsSection
             Divider()
             footer
         }
@@ -17,51 +16,21 @@ struct UsageView: View {
         .frame(width: 340)
     }
 
-    // MARK: Limits
-
     @ViewBuilder
     private var limitsSection: some View {
         switch model.snapshot.state {
         case .ok(let limits):
-            sectionHeader("Limits")
             ForEach(Array(limitLabels.enumerated()), id: \.offset) { _, entry in
                 if let limit = limits[keyPath: entry.keyPath] {
                     LimitCard(label: entry.label, limit: limit)
                 }
             }
         case .fetchError:
-            sectionHeader("Limits")
-            ErrorCard(
-                title: "Failed to fetch usage limits",
-                cache: model.snapshot.cache)
+            MessageCard(text: "Couldn't refresh limits — will retry.", tint: .secondary)
         case .authError:
-            sectionHeader("Limits")
-            ErrorCard(
-                title: "Sign in to Claude Code (run claude, then /login)",
-                cache: model.snapshot.cache)
+            MessageCard(text: "Sign in to Claude Code (run claude, then /login).", tint: .red)
         }
     }
-
-    // MARK: Stats
-
-    private var statsSection: some View {
-        let todayTotals = sumModelCounts(model.snapshot.todayByModel)
-        let session = model.snapshot.sessionTotals
-        return VStack(alignment: .leading, spacing: 10) {
-            sectionHeader("Today")
-            StatsCard(
-                title: "\(grouped(todayTotals.total)) tokens today",
-                detail: breakdownLine(todayTotals),
-                costRow: nil)
-            sectionHeader("Latest session")
-            StatsCard(
-                title: "\(grouped(session.total)) tokens",
-                detail: breakdownLine(session),
-                costRow: nil)
-        }
-    }
-
-    // MARK: Footer
 
     private var footer: some View {
         HStack {
@@ -76,12 +45,6 @@ struct UsageView: View {
         }
         .buttonStyle(.plain)
         .font(.callout)
-    }
-
-    private func sectionHeader(_ text: String) -> some View {
-        Text(text.uppercased())
-            .font(.caption)
-            .foregroundColor(.secondary)
     }
 }
 
@@ -141,73 +104,20 @@ struct ProgressBar: View {
     }
 }
 
-/// Token total card with dim detail and optional orange cost row.
-struct StatsCard: View {
-    let title: String
-    let detail: String
-    let costRow: String?
+/// A simple message card for the error / auth states.
+struct MessageCard: View {
+    let text: String
+    let tint: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.system(.body, design: .rounded).bold())
-            Text(detail)
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            if let costRow = costRow {
-                Text(costRow)
-                    .font(.caption)
-                    .foregroundColor(costColor)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.secondary.opacity(0.08)))
-    }
-}
-
-/// Error/auth card showing the message plus cached values or a hint.
-struct ErrorCard: View {
-    let title: String
-    let cache: CacheState
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.system(.body, design: .rounded).bold())
-                .foregroundColor(.red)
-            cacheLine
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.red.opacity(0.1)))
-    }
-
-    @ViewBuilder
-    private var cacheLine: some View {
-        switch cache {
-        case .fresh(let limits, let ageSeconds):
-            Text("Cached: \(slot(limits.fiveHour)) · \(slot(limits.sevenDay)) (\(formatAge(ageSeconds)) ago)")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        case .missing:
-            Text("no cached data yet")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        case .stale:
-            EmptyView()
-        }
-    }
-
-    private func slot(_ limit: Limit?) -> String {
-        guard let limit = limit else {
-            return "–"
-        }
-        return "\(Int(limit.utilization.rounded()))%"
+        Text(text)
+            .font(.system(.body, design: .rounded))
+            .foregroundColor(tint)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.secondary.opacity(0.08)))
     }
 }

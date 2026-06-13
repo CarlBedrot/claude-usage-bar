@@ -23,9 +23,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         popover = NSPopover()
         popover.behavior = .transient
-        popover.contentSize = NSSize(width: 340, height: 360)
-        popover.contentViewController = NSHostingController(
+        let hosting = NSHostingController(
             rootView: UsageView(model: model, onQuit: { NSApp.terminate(nil) }))
+        hosting.sizingOptions = [.preferredContentSize]  // popover auto-fits the content height
+        popover.contentViewController = hosting
 
         // Re-render the status item title whenever the model publishes.
         model.onUpdate = { [weak self] snapshot in
@@ -98,11 +99,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 // The app entry point. NSApplication runs on the main thread; assume main-actor
 // isolation so we can construct the main-actor-isolated AppDelegate.
 MainActor.assumeIsolated {
-    let args = CommandLine.arguments
-    if let i = args.firstIndex(of: "--render-png"), i + 1 < args.count {
-        renderSamplePNG(to: args[i + 1])
-    }
-
     let app = NSApplication.shared
     let delegate = AppDelegate()
     // Keep the delegate alive for the lifetime of the app.
