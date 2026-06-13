@@ -75,37 +75,71 @@ private struct Eye: Shape {
 
 /// Clawd peeking into a corner: tucked out of view, occasionally pokes in with
 /// a gentle bob and a blink.
+/// One place Clawd can peek from: where it anchors, where it hides (off the
+/// edge) and where it pokes in to, plus a little tilt.
+struct PeekSpot {
+    let alignment: Alignment
+    let hidden: CGSize
+    let peek: CGSize
+    let rot: Double
+}
+
+/// Clawd peeking into the popover from one of several edges/corners, choosing a
+/// new spot each time. Tucked away between peeks, gently bobbing, blinking.
 struct ClawdPeeker: View {
+    @State private var spotIndex = 0
     @State private var peeking = false
     @State private var bob = false
     @State private var blink: CGFloat = 0
-
-    private let hiddenOffset: CGFloat = -46
-    private let peekOffset: CGFloat = -7
     private let peekTimer = Timer.publish(every: 6, on: .main, in: .common).autoconnect()
 
+    /// Five spots: three along the top edge, two rising from the bottom corners.
+    static let spots: [PeekSpot] = [
+        PeekSpot(alignment: .topTrailing, hidden: .init(width: -8, height: -46), peek: .init(width: -8, height: -7), rot: -6),
+        PeekSpot(alignment: .top,         hidden: .init(width: 30, height: -46), peek: .init(width: 30, height: -7), rot: 5),
+        PeekSpot(alignment: .topLeading,  hidden: .init(width: 90, height: -46), peek: .init(width: 90, height: -7), rot: 6),
+        PeekSpot(alignment: .bottomTrailing, hidden: .init(width: -10, height: 46), peek: .init(width: -10, height: 8), rot: 5),
+        PeekSpot(alignment: .bottomLeading,  hidden: .init(width: 10, height: 46), peek: .init(width: 10, height: 8), rot: -5),
+    ]
+
+    private var spot: PeekSpot { ClawdPeeker.spots[spotIndex] }
+
     var body: some View {
-        ClawdView(blink: blink)
-            .frame(width: 40, height: 40)
-            .rotationEffect(.degrees(peeking ? -6 : 0), anchor: .bottom)
-            .offset(x: -4, y: (peeking ? peekOffset : hiddenOffset) + (bob ? -3 : 0))
-            .allowsHitTesting(false)
-            .onAppear {
-                withAnimation(.easeInOut(duration: 1.3).repeatForever(autoreverses: true)) {
-                    bob = true
-                }
+        ZStack(alignment: spot.alignment) {
+            Color.clear
+            ClawdView(blink: blink)
+                .frame(width: 40, height: 40)
+                .rotationEffect(.degrees(peeking ? spot.rot : 0), anchor: .center)
+                .offset(x: peeking ? spot.peek.width : spot.hidden.width,
+                        y: (peeking ? spot.peek.height : spot.hidden.height) + (bob ? -3 : 0))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .allowsHitTesting(false)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.3).repeatForever(autoreverses: true)) {
+                bob = true
             }
-            .onReceive(peekTimer) { _ in peek() }
+        }
+        .onReceive(peekTimer) { _ in peek() }
     }
 
     private func peek() {
+        // Pick a fresh spot (different from the last) while hidden, then poke in.
+        spotIndex = ClawdPeeker.nextSpot(after: spotIndex)
         withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) { peeking = true }
         blinkOnce(after: 1.0)
         blinkOnce(after: 3.2)
-        // Retreat after a longer dwell.
         DispatchQueue.main.asyncAfter(deadline: .now() + 4.4) {
             withAnimation(.easeIn(duration: 0.5)) { peeking = false }
         }
+    }
+
+    static func nextSpot(after current: Int) -> Int {
+        var next = current
+        while next == current {
+            next = Int.random(in: 0..<spots.count)
+        }
+        return next
     }
 
     private func blinkOnce(after delay: Double) {

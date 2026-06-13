@@ -17,7 +17,6 @@ struct UsageView: View {
             }
             .padding(16)
             ClawdPeeker()
-                .padding(.trailing, 16)
         }
         .frame(width: 340)
         .background(Palette.cream)
