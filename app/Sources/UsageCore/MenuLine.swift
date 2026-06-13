@@ -24,9 +24,9 @@ public func menuSeverity(_ limits: Limits) -> Severity {
     let utilizations = [limits.fiveHour, limits.sevenDay]
         .compactMap { $0?.utilization }
     guard let worst = utilizations.max() else {
-        return .gray
+        return .unknown
     }
-    return severityColor(worst)
+    return severityLevel(worst)
 }
 
 /// The menu bar title text.

@@ -59,14 +59,6 @@ public struct Limits: Equatable {
     }
 }
 
-/// Severity buckets for utilization. green < 50, yellow < 80, red otherwise.
-public enum Severity: Equatable {
-    case green
-    case yellow
-    case red
-    case gray
-}
-
 /// Errors raised by the I/O seams.
 public enum UsageError: Error, Equatable {
     case auth

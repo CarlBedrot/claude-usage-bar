@@ -88,10 +88,10 @@ do {
 // --- Test 2: severity_boundaries ---------------------------------------------
 
 do {
-    let ok = severityColor(49.9) == .green
-        && severityColor(50.0) == .yellow
-        && severityColor(79.9) == .yellow
-        && severityColor(80.0) == .red
+    let ok = severityLevel(49.9) == .low
+        && severityLevel(50.0) == .mid
+        && severityLevel(79.9) == .mid
+        && severityLevel(80.0) == .high
     check("severity_boundaries", ok)
 }
 

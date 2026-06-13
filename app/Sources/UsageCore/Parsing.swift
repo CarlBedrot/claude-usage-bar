@@ -14,17 +14,6 @@ public func parseTimestamp(_ value: String) -> Date? {
     return plain.date(from: value)
 }
 
-/// green < 50, yellow < 80, red otherwise. Matches the Python severity_color.
-public func severityColor(_ utilization: Double) -> Severity {
-    if utilization < 50 {
-        return .green
-    }
-    if utilization < 80 {
-        return .yellow
-    }
-    return .red
-}
-
 /// Parse the full usage response JSON into Limits. Returns nil if the payload
 /// is not a JSON object. Individual partial/missing limits become nil fields.
 public func parseLimits(json: String) -> Limits? {

@@ -89,7 +89,7 @@ struct LimitCard: View {
     let label: String
     let limit: Limit
 
-    private var severity: Severity { severityColor(limit.utilization) }
+    private var severity: Severity { severityLevel(limit.utilization) }
     private var tint: Color { color(for: severity) }
 
     var body: some View {

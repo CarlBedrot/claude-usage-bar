@@ -5,13 +5,13 @@ import UsageCore
 /// Map a UsageCore Severity to a high-contrast palette color.
 func color(for severity: Severity) -> Color {
     switch severity {
-    case .green:
+    case .low:
         return Palette.clay
-    case .yellow:
+    case .mid:
         return Palette.burnt
-    case .red:
+    case .high:
         return Palette.red
-    case .gray:
+    case .unknown:
         return Palette.gray
     }
 }
