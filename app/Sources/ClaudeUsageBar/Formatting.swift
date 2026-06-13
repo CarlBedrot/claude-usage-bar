@@ -36,11 +36,25 @@ func grouped(_ value: Int) -> String {
     return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
 }
 
-/// One-line in/out/cache breakdown for a counts bucket.
+/// Abbreviate a token count so the breakdown fits the card width: 70K, 48.0M.
+func compact(_ value: Int) -> String {
+    let n = Double(value)
+    switch value {
+    case ..<1_000:
+        return "\(value)"
+    case ..<1_000_000:
+        return String(format: "%.0fK", n / 1_000)
+    case ..<1_000_000_000:
+        return String(format: "%.1fM", n / 1_000_000)
+    default:
+        return String(format: "%.1fB", n / 1_000_000_000)
+    }
+}
+
+/// One-line in/out/cache breakdown for a counts bucket, abbreviated to fit.
 func breakdownLine(_ counts: Counts) -> String {
-    "in: \(grouped(counts.input)) · out: \(grouped(counts.output))"
-        + " · cache read: \(grouped(counts.cacheRead))"
-        + " · cache write: \(grouped(counts.cacheWrite))"
+    "in \(compact(counts.input)) · out \(compact(counts.output))"
+        + " · cache read \(compact(counts.cacheRead)) · write \(compact(counts.cacheWrite))"
 }
 
 func sumModelCounts(_ perModel: PerModelCounts) -> Counts {

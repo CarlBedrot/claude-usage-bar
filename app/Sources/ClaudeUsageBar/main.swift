@@ -98,6 +98,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 // The app entry point. NSApplication runs on the main thread; assume main-actor
 // isolation so we can construct the main-actor-isolated AppDelegate.
 MainActor.assumeIsolated {
+    let args = CommandLine.arguments
+    if let i = args.firstIndex(of: "--render-png"), i + 1 < args.count {
+        renderSamplePNG(to: args[i + 1])
+    }
+
     let app = NSApplication.shared
     let delegate = AppDelegate()
     // Keep the delegate alive for the lifetime of the app.

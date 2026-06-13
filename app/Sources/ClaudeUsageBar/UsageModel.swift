@@ -41,6 +41,16 @@ final class UsageModel: ObservableObject {
         self.keychainReader = keychainReader
     }
 
+    /// Seed a fixed snapshot for offscreen rendering (the --render-png debug
+    /// path). No I/O is performed.
+    init(seed: UsageSnapshot) {
+        self.scanRoot = defaultScanRoot()
+        self.cachePath = defaultCachePath()
+        self.fetcher = fetchUsage
+        self.keychainReader = readToken
+        self.snapshot = seed
+    }
+
     /// Refresh off the main thread, then publish on the main actor.
     func refresh() {
         if isRefreshing {

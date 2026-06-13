@@ -153,6 +153,7 @@ struct StatsCard: View {
             Text(detail)
                 .font(.caption)
                 .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             if let costRow = costRow {
                 Text(costRow)
                     .font(.caption)
