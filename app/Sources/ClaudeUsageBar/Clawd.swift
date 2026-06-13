@@ -1,0 +1,115 @@
+import SwiftUI
+
+/// The Clawd mascot, drawn with shapes so it scales crisply and can animate.
+/// A blocky clay body with a white sticker outline, ">  <" squint eyes, side
+/// nubs, and little legs.
+struct ClawdView: View {
+    /// 0 = eyes open ">  <", 1 = blink (eyes squeezed to a flat "-  -").
+    var blink: CGFloat = 0
+
+    var body: some View {
+        GeometryReader { geo in
+            let s = min(geo.size.width, geo.size.height)
+            ZStack {
+                // White sticker outline.
+                ClawdBody().fill(.white)
+                // Clay body, inset to reveal the outline.
+                ClawdBody().fill(Palette.clay).padding(s * 0.07)
+                // Eyes: ">" and "<" chevrons that flatten when blinking.
+                HStack(spacing: s * 0.20) {
+                    Eye(flip: false, blink: blink)
+                        .stroke(.black, style: .init(lineWidth: s * 0.055, lineCap: .round, lineJoin: .round))
+                        .frame(width: s * 0.15, height: s * 0.22)
+                    Eye(flip: true, blink: blink)
+                        .stroke(.black, style: .init(lineWidth: s * 0.055, lineCap: .round, lineJoin: .round))
+                        .frame(width: s * 0.15, height: s * 0.22)
+                }
+                .offset(y: -s * 0.03)
+            }
+            .frame(width: s, height: s)
+        }
+    }
+}
+
+/// Body outline: rounded square + two side nubs + three leg notches at the base.
+private struct ClawdBody: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var p = Path()
+        // Main rounded body.
+        let body = CGRect(x: w * 0.10, y: h * 0.06, width: w * 0.80, height: h * 0.80)
+        p.addRoundedRect(in: body, cornerSize: CGSize(width: w * 0.12, height: w * 0.12))
+        // Side nubs (ears/arms).
+        let nubW = w * 0.10, nubH = h * 0.16, nubY = h * 0.40
+        p.addRoundedRect(in: CGRect(x: w * 0.02, y: nubY, width: nubW, height: nubH),
+                         cornerSize: CGSize(width: w * 0.03, height: w * 0.03))
+        p.addRoundedRect(in: CGRect(x: w * 0.88, y: nubY, width: nubW, height: nubH),
+                         cornerSize: CGSize(width: w * 0.03, height: w * 0.03))
+        // Legs: four stubs below the body.
+        let legW = w * 0.12, legY = h * 0.82, legH = h * 0.12
+        for i in 0..<4 {
+            let x = w * (0.20 + Double(i) * 0.165)
+            p.addRect(CGRect(x: x, y: legY, width: legW, height: legH))
+        }
+        return p
+    }
+}
+
+/// A ">" (or mirrored "<") chevron eye that flattens toward "-" as blink -> 1.
+private struct Eye: Shape {
+    var flip: Bool
+    var blink: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let midY = rect.midY
+        let openY = rect.height * 0.5 * (1 - blink)   // vertical spread shrinks on blink
+        let tipX = flip ? rect.minX : rect.maxX
+        let baseX = flip ? rect.maxX : rect.minX
+        var p = Path()
+        p.move(to: CGPoint(x: baseX, y: midY - openY))
+        p.addLine(to: CGPoint(x: tipX, y: midY))
+        p.addLine(to: CGPoint(x: baseX, y: midY + openY))
+        return p
+    }
+}
+
+/// Clawd peeking into a corner: tucked out of view, occasionally pokes in with
+/// a gentle bob and a blink.
+struct ClawdPeeker: View {
+    @State private var peeking = false
+    @State private var bob = false
+    @State private var blink: CGFloat = 0
+
+    private let hiddenOffset: CGFloat = -46
+    private let peekOffset: CGFloat = -7
+    private let peekTimer = Timer.publish(every: 9, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        ClawdView(blink: blink)
+            .frame(width: 40, height: 40)
+            .rotationEffect(.degrees(peeking ? -6 : 0), anchor: .bottom)
+            .offset(x: -4, y: (peeking ? peekOffset : hiddenOffset) + (bob ? -3 : 0))
+            .allowsHitTesting(false)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 1.3).repeatForever(autoreverses: true)) {
+                    bob = true
+                }
+            }
+            .onReceive(peekTimer) { _ in peek() }
+    }
+
+    private func peek() {
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) { peeking = true }
+        // A little blink mid-peek.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            withAnimation(.easeInOut(duration: 0.12)) { blink = 1 }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                withAnimation(.easeInOut(duration: 0.12)) { blink = 0 }
+            }
+        }
+        // Retreat.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.6) {
+            withAnimation(.easeIn(duration: 0.45)) { peeking = false }
+        }
+    }
+}

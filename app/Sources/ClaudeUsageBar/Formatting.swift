@@ -6,9 +6,9 @@ import UsageCore
 func color(for severity: Severity) -> Color {
     switch severity {
     case .green:
-        return Palette.green
+        return Palette.clay
     case .yellow:
-        return Palette.amber
+        return Palette.burnt
     case .red:
         return Palette.red
     case .gray:

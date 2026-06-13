@@ -7,15 +7,28 @@ struct UsageView: View {
     var onQuit: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            limitsSection
-            usageSection
-            Divider()
-            footer
+        ZStack(alignment: .topTrailing) {
+            VStack(alignment: .leading, spacing: 12) {
+                header
+                limitsSection
+                usageSection
+                Divider()
+                footer
+            }
+            .padding(16)
+            ClawdPeeker()
+                .padding(.trailing, 16)
         }
-        .padding(16)
         .frame(width: 340)
         .background(Palette.cream)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private var header: some View {
+        Text("CLAUDE USAGE")
+            .font(.caption2).bold()
+            .tracking(1.5)
+            .foregroundColor(Palette.clay)
     }
 
     @ViewBuilder

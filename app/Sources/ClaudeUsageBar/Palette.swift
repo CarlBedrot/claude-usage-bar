@@ -13,8 +13,10 @@ enum Palette {
     static let ink = rgb(31, 27, 22)        // #1F1B16 — primary text (warm black)
     static let inkDim = rgb(122, 112, 96)   // #7A7060 — secondary text
 
-    static let green = rgb(22, 130, 54)     // #168236
-    static let amber = rgb(193, 112, 0)     // #C17000
-    static let red = rgb(197, 34, 31)       // #C5221F
-    static let gray = rgb(138, 130, 118)    // #8A8276
+    // Anthropic / Claude palette: clay is the signature accent. Severity
+    // escalates within warm tones (clay -> burnt -> brick) — no green.
+    static let clay = rgb(217, 119, 87)     // #D97757 — Claude clay (low / primary)
+    static let burnt = rgb(190, 74, 31)     // #BE4A1F — mid severity
+    static let red = rgb(179, 38, 30)       // #B3261E — high severity
+    static let gray = rgb(138, 130, 118)    // #8A8276 — no data
 }

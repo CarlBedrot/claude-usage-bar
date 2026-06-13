@@ -89,11 +89,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func nsColor(for severity: Severity) -> NSColor {
         switch severity {
         case .green:
-            return .systemGreen
+            return NSColor(srgbRed: 217 / 255, green: 119 / 255, blue: 87 / 255, alpha: 1)   // clay
         case .yellow:
-            return .systemYellow
+            return NSColor(srgbRed: 190 / 255, green: 74 / 255, blue: 31 / 255, alpha: 1)     // burnt
         case .red:
-            return .systemRed
+            return NSColor(srgbRed: 179 / 255, green: 38 / 255, blue: 30 / 255, alpha: 1)     // brick
         case .gray:
             return .secondaryLabelColor
         }
