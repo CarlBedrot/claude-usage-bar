@@ -78,8 +78,8 @@ let yesterdayNoon = cphCalendar.date(byAdding: .day, value: -1, to: now)!
 do {
     let z = parseTimestamp("2026-06-12T22:49:48.413Z")
     let offset = parseTimestamp("2026-06-15T14:00:01+00:00")
-    let expectedZ = 1781246988.413   // 2026-06-12T22:49:48.413Z epoch
-    let expectedOffset = 1781877601.0 // 2026-06-15T14:00:01Z epoch
+    let expectedZ = 1781304588.413   // 2026-06-12T22:49:48.413Z epoch
+    let expectedOffset = 1781532001.0 // 2026-06-15T14:00:01Z epoch
     let zOk = z != nil && abs(z!.timeIntervalSince1970 - expectedZ) < 0.01
     let offsetOk = offset != nil && abs(offset!.timeIntervalSince1970 - expectedOffset) < 0.01
     check("timestamp_z_and_offset", zOk && offsetOk)
