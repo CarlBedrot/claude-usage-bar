@@ -15,6 +15,7 @@ struct UsageView: View {
         }
         .padding(16)
         .frame(width: 340)
+        .background(Palette.cream)
     }
 
     @ViewBuilder
@@ -27,9 +28,9 @@ struct UsageView: View {
                 }
             }
         case .fetchError:
-            MessageCard(text: "Couldn't refresh limits — will retry.", tint: .secondary)
+            MessageCard(text: "Couldn't refresh limits — will retry.", tint: Palette.inkDim)
         case .authError:
-            MessageCard(text: "Sign in to Claude Code (run claude, then /login).", tint: .red)
+            MessageCard(text: "Sign in to Claude Code (run claude, then /login).", tint: Palette.red)
         }
     }
 
@@ -51,7 +52,7 @@ struct UsageView: View {
     private func sectionHeader(_ text: String) -> some View {
         Text(text.uppercased())
             .font(.caption)
-            .foregroundColor(.secondary)
+            .foregroundColor(Palette.inkDim)
     }
 
     private var footer: some View {
@@ -67,6 +68,7 @@ struct UsageView: View {
         }
         .buttonStyle(.plain)
         .font(.callout)
+        .foregroundColor(Palette.ink)
     }
 }
 
@@ -87,7 +89,7 @@ struct LimitCard: View {
                 HStack {
                     Text(label)
                         .font(.system(.body, design: .rounded).bold())
-                        .foregroundColor(tint)
+                        .foregroundColor(Palette.ink)
                     Spacer()
                     Text("\(Int(limit.utilization.rounded()))%")
                         .font(.system(.body, design: .rounded).bold())
@@ -96,14 +98,14 @@ struct LimitCard: View {
                 ProgressBar(fraction: min(limit.utilization, 100) / 100, tint: tint)
                 Text(formatReset(limit.resetsAt))
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Palette.inkDim)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(tint.opacity(0.12)))
+                .fill(tint.opacity(0.18)))
     }
 }
 
@@ -116,7 +118,7 @@ struct ProgressBar: View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 Capsule()
-                    .fill(tint.opacity(0.2))
+                    .fill(Palette.ink.opacity(0.12))
                 Capsule()
                     .fill(tint)
                     .frame(width: max(0, geo.size.width * fraction))
@@ -135,16 +137,17 @@ struct StatsCard: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.system(.body, design: .rounded).bold())
+                .foregroundColor(Palette.ink)
             Text(detail)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(Palette.inkDim)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color.secondary.opacity(0.08)))
+                .fill(Palette.panel))
     }
 }
 
@@ -162,6 +165,6 @@ struct MessageCard: View {
             .padding(10)
             .background(
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.secondary.opacity(0.08)))
+                    .fill(Palette.panel))
     }
 }

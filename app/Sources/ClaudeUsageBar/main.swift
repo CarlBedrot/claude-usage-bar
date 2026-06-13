@@ -26,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         popover = NSPopover()
         popover.behavior = .transient
+        popover.appearance = NSAppearance(named: .aqua)  // keep the cream UI light in dark mode too
         let hosting = NSHostingController(
             rootView: UsageView(model: model, onQuit: { NSApp.terminate(nil) }))
         hosting.sizingOptions = [.preferredContentSize]  // popover auto-fits the content height

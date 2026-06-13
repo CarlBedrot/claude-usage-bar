@@ -2,17 +2,17 @@ import Foundation
 import SwiftUI
 import UsageCore
 
-/// Map a UsageCore Severity to a SwiftUI Color.
+/// Map a UsageCore Severity to a high-contrast palette color.
 func color(for severity: Severity) -> Color {
     switch severity {
     case .green:
-        return .green
+        return Palette.green
     case .yellow:
-        return .yellow
+        return Palette.amber
     case .red:
-        return .red
+        return Palette.red
     case .gray:
-        return .gray
+        return Palette.gray
     }
 }
 
