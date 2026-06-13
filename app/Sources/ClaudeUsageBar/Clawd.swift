@@ -82,7 +82,7 @@ struct ClawdPeeker: View {
 
     private let hiddenOffset: CGFloat = -46
     private let peekOffset: CGFloat = -7
-    private let peekTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
+    private let peekTimer = Timer.publish(every: 6, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ClawdView(blink: blink)
@@ -100,16 +100,20 @@ struct ClawdPeeker: View {
 
     private func peek() {
         withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) { peeking = true }
-        // A little blink mid-peek.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+        blinkOnce(after: 1.0)
+        blinkOnce(after: 3.2)
+        // Retreat after a longer dwell.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.4) {
+            withAnimation(.easeIn(duration: 0.5)) { peeking = false }
+        }
+    }
+
+    private func blinkOnce(after delay: Double) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
             withAnimation(.easeInOut(duration: 0.12)) { blink = 1 }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
                 withAnimation(.easeInOut(duration: 0.12)) { blink = 0 }
             }
-        }
-        // Retreat.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.6) {
-            withAnimation(.easeIn(duration: 0.45)) { peeking = false }
         }
     }
 }
