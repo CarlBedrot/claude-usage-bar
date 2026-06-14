@@ -324,6 +324,22 @@ do {
     check("active_by_cwd_disambiguates", ok)
 }
 
+// --- Test 9h: interactive_claude_pids ----------------------------------------
+
+do {
+    // Two interactive sessions (real tty), one headless claude (??), the
+    // desktop app (??), and a node child — only the interactive ones count.
+    let psOut = """
+    38179 ttys000 claude
+     7617 ttys002 claude
+    61456 ?? /Users/carlbedrot/.local/bin/claude
+      690 ?? /Applications/Claude.app/Contents/MacOS/Claude
+    12345 ttys003 node
+    """
+    let pids = interactiveClaudePids(fromPsOutput: psOut)
+    check("interactive_claude_pids", pids == ["38179", "7617"])
+}
+
 // --- Test 10: truncated_line_skipped -----------------------------------------
 
 do {
