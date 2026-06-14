@@ -229,28 +229,7 @@ public func activeSessions(root: URL, runningCwds: [String]) -> [SessionSummary]
                 lastModified: Date(timeIntervalSince1970: 0)))
         }
     }
-    return disambiguateLabels(summaries.sorted { $0.lastModified > $1.lastModified })
-}
-
-/// When sessions share a label (same folder, no distinguishing branch), append
-/// a short transcript id so the rows are tellable apart.
-func disambiguateLabels(_ summaries: [SessionSummary]) -> [SessionSummary] {
-    var labelCounts: [String: Int] = [:]
-    for summary in summaries {
-        labelCounts[summary.label, default: 0] += 1
-    }
-    return summaries.map { summary in
-        guard labelCounts[summary.label, default: 0] > 1 else {
-            return summary
-        }
-        let shortId = String(
-            URL(fileURLWithPath: summary.id).deletingPathExtension().lastPathComponent.prefix(4))
-        return SessionSummary(
-            id: summary.id,
-            label: "\(summary.label) · \(shortId)",
-            counts: summary.counts,
-            lastModified: summary.lastModified)
-    }
+    return summaries.sorted { $0.lastModified > $1.lastModified }
 }
 
 /// Fallback when process inspection is unavailable: treat any transcript

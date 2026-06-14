@@ -139,31 +139,55 @@ struct ProgressBar: View {
     }
 }
 
+/// One switchable view in the sessions card.
+private struct SessionEntry {
+    let tabLabel: String      // shown on the pill (folder + age when folders clash)
+    let detailLabel: String   // shown above the numbers
+    let age: String?          // "active X ago"; nil for the combined "All" view
+    let counts: Counts
+}
+
 /// Per-session usage with tab switching: a tab per active session (plus "All"
-/// for the combined total when there's more than one), showing the selected
-/// session's tokens and in/out/cache breakdown.
+/// for the combined total when there's more than one). Sessions are
+/// distinguished by how recently they were active, since several can share a
+/// folder — the one you just used reads "now".
 struct SessionsCard: View {
     let sessions: [SessionSummary]
     @State private var selectedIndex = 0
 
-    /// The switchable views: "All" (combined) first when there are several,
-    /// then one per session.
-    private var entries: [(label: String, counts: Counts)] {
-        var result: [(String, Counts)] = []
+    private func age(of session: SessionSummary, now: Date) -> String {
+        // A just-started session (placeholder, no transcript) has epoch-0 mtime.
+        session.lastModified.timeIntervalSince1970 == 0 ? "new" : relativeAge(session.lastModified, now: now)
+    }
+
+    private func entries(now: Date) -> [SessionEntry] {
+        var result: [SessionEntry] = []
         if sessions.count > 1 {
             let combined = sessions.reduce(into: zeroCounts()) { $0.add($1.counts) }
-            result.append(("All", combined))
+            result.append(SessionEntry(tabLabel: "All", detailLabel: "All", age: nil, counts: combined))
         }
-        result.append(contentsOf: sessions.map { ($0.label, $0.counts) })
+        // When two sessions share a base label, fold the age into the tab too,
+        // so the pills themselves are tellable apart.
+        var labelCounts: [String: Int] = [:]
+        for session in sessions {
+            labelCounts[session.label, default: 0] += 1
+        }
+        for session in sessions {
+            let sessionAge = age(of: session, now: now)
+            let collides = labelCounts[session.label, default: 0] > 1
+            result.append(SessionEntry(
+                tabLabel: collides ? "\(session.label) · \(sessionAge)" : session.label,
+                detailLabel: session.label,
+                age: sessionAge,
+                counts: session.counts))
+        }
         return result
     }
 
-    private var safeIndex: Int {
-        min(max(selectedIndex, 0), max(entries.count - 1, 0))
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let entries = self.entries(now: Date())
+        let index = min(max(selectedIndex, 0), max(entries.count - 1, 0))
+        return VStack(alignment: .leading, spacing: 8) {
             if entries.isEmpty {
                 Text("No active sessions")
                     .font(.system(.body, design: .rounded))
@@ -171,19 +195,26 @@ struct SessionsCard: View {
             } else {
                 if entries.count > 1 {
                     FlowLayout(spacing: 6) {
-                        ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
+                        ForEach(Array(entries.enumerated()), id: \.offset) { offset, entry in
                             SessionTab(
-                                label: entry.label,
-                                selected: index == safeIndex,
-                                action: { selectedIndex = index })
+                                label: entry.tabLabel,
+                                selected: offset == index,
+                                action: { selectedIndex = offset })
                         }
                     }
                 }
-                let entry = entries[safeIndex]
-                Text(entry.label.uppercased())
-                    .font(.caption2)
-                    .foregroundColor(Palette.inkDim)
-                    .lineLimit(1)
+                let entry = entries[index]
+                HStack(spacing: 6) {
+                    Text(entry.detailLabel.uppercased())
+                        .font(.caption2)
+                        .foregroundColor(Palette.inkDim)
+                        .lineLimit(1)
+                    if let age = entry.age {
+                        Text("· active \(age)")
+                            .font(.caption2)
+                            .foregroundColor(Palette.inkDim)
+                    }
+                }
                 Text("\(grouped(entry.counts.total)) tokens")
                     .font(.system(.body, design: .rounded).bold())
                     .foregroundColor(Palette.ink)

@@ -305,25 +305,6 @@ do {
     check("active_by_cwd_excludes_subagents", active.count == 1 && activeTotal(active) == 25)
 }
 
-// --- Test 9g: active_by_cwd_disambiguates_same_folder ------------------------
-
-do {
-    let root = makeTempDir("active-dis")
-    let newer = now.addingTimeInterval(-1 * 3600)
-    let older = now.addingTimeInterval(-2 * 3600)
-    // Two sessions in the SAME folder → labels collide → short id appended.
-    writeFile(root.appendingPathComponent("p/aaaa1111.jsonl"),
-        [cwdEntry(id: "n", cwd: "/work/home", input: 10)], mtime: newer)
-    writeFile(root.appendingPathComponent("p/bbbb2222.jsonl"),
-        [cwdEntry(id: "o", cwd: "/work/home", input: 20)], mtime: older)
-    let active = activeSessions(root: root, runningCwds: ["/work/home", "/work/home"])
-    let labels = active.map { $0.label }
-    let ok = active.count == 2
-        && Set(labels).count == 2
-        && labels.allSatisfy { $0.hasPrefix("home · ") }
-    check("active_by_cwd_disambiguates", ok)
-}
-
 // --- Test 9h: interactive_claude_pids ----------------------------------------
 
 do {

@@ -25,6 +25,21 @@ func formatReset(_ date: Date, now: Date = Date()) -> String {
     return "Resets \(day.string(from: date)) at \(timeText) (Europe/Copenhagen)"
 }
 
+/// Compact "time since last activity" for a session: "now", "5m ago", "2h ago".
+func relativeAge(_ date: Date, now: Date = Date()) -> String {
+    let seconds = max(0, now.timeIntervalSince(date))
+    switch seconds {
+    case ..<90:
+        return "now"
+    case ..<3_600:
+        return "\(Int((seconds / 60).rounded()))m ago"
+    case ..<86_400:
+        return "\(Int((seconds / 3_600).rounded()))h ago"
+    default:
+        return "\(Int((seconds / 86_400).rounded()))d ago"
+    }
+}
+
 /// Thousands-grouped integer, e.g. 1,234,567.
 func grouped(_ value: Int) -> String {
     let formatter = NumberFormatter()
