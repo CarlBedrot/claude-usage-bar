@@ -144,44 +144,149 @@ func relativePathComponents(of url: URL, under root: URL) -> [String] {
     return Array(urlComponents.dropFirst(rootComponents.count))
 }
 
-/// Non-subagent transcripts modified within the active window — one per session.
-func activeSessionTranscripts(root: URL, now: Date, windowSeconds: TimeInterval) -> [URL] {
-    let cutoff = now.addingTimeInterval(-windowSeconds)
-    return jsonlFiles(in: root).filter { url in
-        !relativePathComponents(of: url, under: root).contains(subagentDirName)
-            && fileModificationDate(url) >= cutoff
+/// All non-subagent transcripts under root (one per session).
+func nonSubagentTranscripts(in root: URL) -> [URL] {
+    jsonlFiles(in: root).filter {
+        !relativePathComponents(of: $0, under: root).contains(subagentDirName)
     }
 }
 
-/// One summary per recently-active session — its tokens (session + its own
-/// subagents, deduped by message.id within the session) and a folder/branch
-/// label — newest first. Concurrent sessions are all included, not just one.
+/// Non-subagent transcripts modified within the active window — one per session.
+func activeSessionTranscripts(root: URL, now: Date, windowSeconds: TimeInterval) -> [URL] {
+    let cutoff = now.addingTimeInterval(-windowSeconds)
+    return nonSubagentTranscripts(in: root).filter { fileModificationDate($0) >= cutoff }
+}
+
+/// The cwd recorded in a transcript (first entry that carries one), else nil.
+func sessionCwd(_ session: URL) -> String? {
+    for entry in readEntries(path: session) {
+        if let cwd = entry["cwd"] as? String, !cwd.isEmpty {
+            return cwd
+        }
+    }
+    return nil
+}
+
+/// Build a summary for one session: its tokens (session + its own subagents,
+/// deduped by message.id within the session) and a folder/branch label.
+func summarizeSession(_ session: URL) -> SessionSummary {
+    var totals = zeroCounts()
+    var seenIds: Set<String> = []
+    var cwd: String?
+    var branch: String?
+    for path in [session] + subagentFiles(for: session) {
+        for entry in readEntries(path: path) {
+            if cwd == nil { cwd = entry["cwd"] as? String }
+            if branch == nil { branch = entry["gitBranch"] as? String }
+            guard let usage = extractMessageUsage(entry), !seenIds.contains(usage.messageId) else {
+                continue
+            }
+            seenIds.insert(usage.messageId)
+            totals.add(usage.counts)
+        }
+    }
+    return SessionSummary(
+        id: session.path,
+        label: sessionLabel(cwd: cwd, branch: branch, transcript: session),
+        counts: totals,
+        lastModified: fileModificationDate(session))
+}
+
+/// Active sessions keyed off the running Claude processes: `runningCwds` has one
+/// entry per live `claude` process (its working dir). Each is matched to the
+/// newest transcript sharing that cwd; a process that hasn't written a
+/// transcript yet becomes a zero-count placeholder so the count always equals
+/// the number of live sessions. Newest first.
+public func activeSessions(root: URL, runningCwds: [String]) -> [SessionSummary] {
+    var needed: [String: Int] = [:]
+    for cwd in runningCwds {
+        needed[normalizePath(cwd), default: 0] += 1
+    }
+
+    let candidates = nonSubagentTranscripts(in: root)
+        .sorted { fileModificationDate($0) > fileModificationDate($1) }
+
+    var summaries: [SessionSummary] = []
+    for transcript in candidates {
+        if needed.values.allSatisfy({ $0 == 0 }) {
+            break
+        }
+        guard let cwd = sessionCwd(transcript).map(normalizePath),
+              let remaining = needed[cwd], remaining > 0 else {
+            continue
+        }
+        needed[cwd] = remaining - 1
+        summaries.append(summarizeSession(transcript))
+    }
+
+    // Live sessions with no transcript yet (just started) → placeholders.
+    for (cwd, remaining) in needed where remaining > 0 {
+        for index in 0..<remaining {
+            summaries.append(SessionSummary(
+                id: "running:\(cwd):\(index)",
+                label: folderLabel(forPath: cwd),
+                counts: zeroCounts(),
+                lastModified: Date(timeIntervalSince1970: 0)))
+        }
+    }
+    return disambiguateLabels(summaries.sorted { $0.lastModified > $1.lastModified })
+}
+
+/// When sessions share a label (same folder, no distinguishing branch), append
+/// a short transcript id so the rows are tellable apart.
+func disambiguateLabels(_ summaries: [SessionSummary]) -> [SessionSummary] {
+    var labelCounts: [String: Int] = [:]
+    for summary in summaries {
+        labelCounts[summary.label, default: 0] += 1
+    }
+    return summaries.map { summary in
+        guard labelCounts[summary.label, default: 0] > 1 else {
+            return summary
+        }
+        let shortId = String(
+            URL(fileURLWithPath: summary.id).deletingPathExtension().lastPathComponent.prefix(4))
+        return SessionSummary(
+            id: summary.id,
+            label: "\(summary.label) · \(shortId)",
+            counts: summary.counts,
+            lastModified: summary.lastModified)
+    }
+}
+
+/// Fallback when process inspection is unavailable: treat any transcript
+/// written within the window as an active session. Catches running sessions but
+/// misses long-idle ones and may include a just-closed one.
+public func activeSessionsByMtime(root: URL, now: Date,
+                                  windowSeconds: TimeInterval = activeSessionWindowSeconds) -> [SessionSummary] {
+    activeSessionTranscripts(root: root, now: now, windowSeconds: windowSeconds)
+        .map(summarizeSession)
+        .sorted { $0.lastModified > $1.lastModified }
+}
+
+/// Active sessions for the app: prefer the live-process signal, falling back to
+/// the mtime heuristic only if process inspection fails entirely.
 public func scanActiveSessions(root: URL, now: Date,
                                windowSeconds: TimeInterval = activeSessionWindowSeconds) -> [SessionSummary] {
-    var summaries: [SessionSummary] = []
-    for session in activeSessionTranscripts(root: root, now: now, windowSeconds: windowSeconds) {
-        var totals = zeroCounts()
-        var seenIds: Set<String> = []
-        var cwd: String?
-        var branch: String?
-        for path in [session] + subagentFiles(for: session) {
-            for entry in readEntries(path: path) {
-                if cwd == nil { cwd = entry["cwd"] as? String }
-                if branch == nil { branch = entry["gitBranch"] as? String }
-                guard let usage = extractMessageUsage(entry), !seenIds.contains(usage.messageId) else {
-                    continue
-                }
-                seenIds.insert(usage.messageId)
-                totals.add(usage.counts)
-            }
-        }
-        summaries.append(SessionSummary(
-            id: session.path,
-            label: sessionLabel(cwd: cwd, branch: branch, transcript: session),
-            counts: totals,
-            lastModified: fileModificationDate(session)))
+    if let cwds = detectRunningClaudeCwds() {
+        return cwds.isEmpty ? [] : activeSessions(root: root, runningCwds: cwds)
     }
-    return summaries.sorted { $0.lastModified > $1.lastModified }
+    return activeSessionsByMtime(root: root, now: now, windowSeconds: windowSeconds)
+}
+
+/// Canonical absolute path: resolves `.`/`..` and drops any trailing slash so
+/// process cwds and transcript cwds compare equal.
+func normalizePath(_ path: String) -> String {
+    var normalized = URL(fileURLWithPath: path).standardizedFileURL.path
+    if normalized.count > 1 && normalized.hasSuffix("/") {
+        normalized.removeLast()
+    }
+    return normalized
+}
+
+/// The trailing folder name of a path, for labeling a transcript-less session.
+func folderLabel(forPath path: String) -> String {
+    let last = URL(fileURLWithPath: normalizePath(path)).lastPathComponent
+    return last.isEmpty ? path : last
 }
 
 /// Folder name from the session's cwd, with the branch appended when it adds

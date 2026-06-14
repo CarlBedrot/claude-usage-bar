@@ -56,6 +56,19 @@ func usageEntry(id: String, model: String, timestamp: Date?,
     return "{" + fields.joined(separator: ",") + "}"
 }
 
+// A usage-bearing JSONL entry carrying a cwd (and optional branch), for the
+// process-cwd-based active-session path.
+func cwdEntry(id: String, cwd: String, branch: String? = nil, input: Int = 0) -> String {
+    let usage = "\"usage\":{\"input_tokens\":\(input),\"output_tokens\":0,"
+        + "\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":0}"
+    var fields = ["\"cwd\":\"\(cwd)\""]
+    if let branch = branch {
+        fields.append("\"gitBranch\":\"\(branch)\"")
+    }
+    fields.append("\"message\":{\"id\":\"\(id)\",\"model\":\"m\",\(usage)}")
+    return "{" + fields.joined(separator: ",") + "}"
+}
+
 func total(_ counts: Counts) -> Int {
     counts.input + counts.output + counts.cacheRead + counts.cacheWrite
 }
@@ -183,7 +196,7 @@ do {
     writeFile(root.appendingPathComponent("proj/old.jsonl"), [
         usageEntry(id: "old", model: "m", timestamp: old, input: 9999),
     ], mtime: old)
-    let active = scanActiveSessions(root: root, now: now, windowSeconds: window)
+    let active = activeSessionsByMtime(root: root, now: now, windowSeconds: window)
     // 2 active sessions, summed with their subagents: 10+5+100+50 = 165.
     check("active_sessions_sum", active.count == 2 && activeTotal(active) == 165)
 }
@@ -201,7 +214,7 @@ do {
     writeFile(root.appendingPathComponent("proj/other/subagents/sub.jsonl"), [
         usageEntry(id: "sub", model: "m", timestamp: recent, input: 999),
     ], mtime: recent)
-    let active = scanActiveSessions(root: root, now: now, windowSeconds: 3 * 3600)
+    let active = activeSessionsByMtime(root: root, now: now, windowSeconds: 3 * 3600)
     check("subagent_not_counted_as_session", active.count == 1 && activeTotal(active) == 20)
 }
 
@@ -214,7 +227,7 @@ do {
         usageEntry(id: "nodate", model: "m", timestamp: nil, input: 6),
     ], mtime: now)
     let todayCounts = total(scanToday(root: root, now: now)["m"] ?? zeroCounts())
-    let active = scanActiveSessions(root: root, now: now, windowSeconds: 3 * 3600)
+    let active = activeSessionsByMtime(root: root, now: now, windowSeconds: 3 * 3600)
     // Today counts only the dated entry; an active session counts both.
     check("entry_without_timestamp", todayCounts == 4 && active.count == 1 && activeTotal(active) == 10)
 }
@@ -233,9 +246,82 @@ do {
         + "\"output_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation_input_tokens\":0}}}"
     writeFile(root.appendingPathComponent("p/a.jsonl"), [mainLine], mtime: recentA)
     writeFile(root.appendingPathComponent("p/b.jsonl"), [devLine], mtime: recentB)
-    let active = scanActiveSessions(root: root, now: now, windowSeconds: 3 * 3600)
+    let active = activeSessionsByMtime(root: root, now: now, windowSeconds: 3 * 3600)
     // Sorted newest first: a (main, branch suppressed) then b (branch shown).
     check("session_label", active.map { $0.label } == ["proj-main", "proj-dev · feature/foo"])
+}
+
+// --- Test 9c: active_by_cwd_two_sessions -------------------------------------
+
+do {
+    let root = makeTempDir("active-cwd")
+    let recentA = now.addingTimeInterval(-1 * 3600)
+    let recentB = now.addingTimeInterval(-2 * 3600)
+    writeFile(root.appendingPathComponent("p/a.jsonl"),
+        [cwdEntry(id: "a", cwd: "/work/alpha", input: 10)], mtime: recentA)
+    writeFile(root.appendingPathComponent("p/b.jsonl"),
+        [cwdEntry(id: "b", cwd: "/work/beta", input: 100)], mtime: recentB)
+    let active = activeSessions(root: root, runningCwds: ["/work/alpha", "/work/beta"])
+    check("active_by_cwd_two_sessions", active.count == 2 && activeTotal(active) == 110)
+}
+
+// --- Test 9d: active_by_cwd_picks_newest_per_session -------------------------
+
+do {
+    let root = makeTempDir("active-newest")
+    let newer = now.addingTimeInterval(-1 * 3600)
+    let older = now.addingTimeInterval(-3 * 3600)
+    // Two transcripts share a cwd but only one session runs there → newest wins.
+    writeFile(root.appendingPathComponent("p/new.jsonl"),
+        [cwdEntry(id: "n", cwd: "/work/alpha", input: 100)], mtime: newer)
+    writeFile(root.appendingPathComponent("p/old.jsonl"),
+        [cwdEntry(id: "o", cwd: "/work/alpha", input: 50)], mtime: older)
+    let active = activeSessions(root: root, runningCwds: ["/work/alpha"])
+    check("active_by_cwd_picks_newest", active.count == 1 && activeTotal(active) == 100)
+}
+
+// --- Test 9e: active_by_cwd_placeholder_when_no_transcript -------------------
+
+do {
+    let root = makeTempDir("active-placeholder")
+    writeFile(root.appendingPathComponent("p/a.jsonl"),
+        [cwdEntry(id: "a", cwd: "/work/beta", input: 10)], mtime: now)
+    // A session runs in /work/gamma but has written no transcript yet.
+    let active = activeSessions(root: root, runningCwds: ["/work/gamma"])
+    let ok = active.count == 1 && activeTotal(active) == 0 && active.first?.label == "gamma"
+    check("active_by_cwd_placeholder", ok)
+}
+
+// --- Test 9f: active_by_cwd_excludes_subagents -------------------------------
+
+do {
+    let root = makeTempDir("active-cwd-sub")
+    writeFile(root.appendingPathComponent("p/main.jsonl"),
+        [cwdEntry(id: "main", cwd: "/work/alpha", input: 20)], mtime: now)
+    writeFile(root.appendingPathComponent("p/main/subagents/sub.jsonl"),
+        [cwdEntry(id: "sub", cwd: "/work/alpha", input: 5)], mtime: now)
+    let active = activeSessions(root: root, runningCwds: ["/work/alpha"])
+    // Subagent folded into its parent session, not counted as its own session.
+    check("active_by_cwd_excludes_subagents", active.count == 1 && activeTotal(active) == 25)
+}
+
+// --- Test 9g: active_by_cwd_disambiguates_same_folder ------------------------
+
+do {
+    let root = makeTempDir("active-dis")
+    let newer = now.addingTimeInterval(-1 * 3600)
+    let older = now.addingTimeInterval(-2 * 3600)
+    // Two sessions in the SAME folder → labels collide → short id appended.
+    writeFile(root.appendingPathComponent("p/aaaa1111.jsonl"),
+        [cwdEntry(id: "n", cwd: "/work/home", input: 10)], mtime: newer)
+    writeFile(root.appendingPathComponent("p/bbbb2222.jsonl"),
+        [cwdEntry(id: "o", cwd: "/work/home", input: 20)], mtime: older)
+    let active = activeSessions(root: root, runningCwds: ["/work/home", "/work/home"])
+    let labels = active.map { $0.label }
+    let ok = active.count == 2
+        && Set(labels).count == 2
+        && labels.allSatisfy { $0.hasPrefix("home · ") }
+    check("active_by_cwd_disambiguates", ok)
 }
 
 // --- Test 10: truncated_line_skipped -----------------------------------------
