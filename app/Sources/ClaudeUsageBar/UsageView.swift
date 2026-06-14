@@ -56,7 +56,7 @@ struct UsageView: View {
             StatsCard(title: "\(grouped(today.total)) tokens",
                       detail: breakdownLine(today))
             sectionHeader("Active sessions · \(active.count)")
-            ActiveSessionsCard(sessions: active)
+            SessionsCard(sessions: active)
         }
     }
 
@@ -139,56 +139,58 @@ struct ProgressBar: View {
     }
 }
 
-/// Combined active-session usage; tap to expand a per-session breakdown
-/// (folder/branch label + token count). Collapses to just the total.
-struct ActiveSessionsCard: View {
+/// Per-session usage with tab switching: a tab per active session (plus "All"
+/// for the combined total when there's more than one), showing the selected
+/// session's tokens and in/out/cache breakdown.
+struct SessionsCard: View {
     let sessions: [SessionSummary]
-    @State private var expanded = false
+    @State private var selectedIndex = 0
 
-    private var total: Counts {
-        sessions.reduce(into: zeroCounts()) { $0.add($1.counts) }
+    /// The switchable views: "All" (combined) first when there are several,
+    /// then one per session.
+    private var entries: [(label: String, counts: Counts)] {
+        var result: [(String, Counts)] = []
+        if sessions.count > 1 {
+            let combined = sessions.reduce(into: zeroCounts()) { $0.add($1.counts) }
+            result.append(("All", combined))
+        }
+        result.append(contentsOf: sessions.map { ($0.label, $0.counts) })
+        return result
+    }
+
+    private var safeIndex: Int {
+        min(max(selectedIndex, 0), max(entries.count - 1, 0))
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Button {
-                if !sessions.isEmpty { expanded.toggle() }
-            } label: {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("\(grouped(total.total)) tokens")
-                            .font(.system(.body, design: .rounded).bold())
-                            .foregroundColor(Palette.ink)
-                        Text(breakdownLine(total))
-                            .font(.caption)
-                            .foregroundColor(Palette.inkDim)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Spacer()
-                    if !sessions.isEmpty {
-                        Image(systemName: expanded ? "chevron.up" : "chevron.down")
-                            .font(.caption)
-                            .foregroundColor(Palette.inkDim)
+            if entries.isEmpty {
+                Text("No active sessions")
+                    .font(.system(.body, design: .rounded))
+                    .foregroundColor(Palette.inkDim)
+            } else {
+                if entries.count > 1 {
+                    FlowLayout(spacing: 6) {
+                        ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
+                            SessionTab(
+                                label: entry.label,
+                                selected: index == safeIndex,
+                                action: { selectedIndex = index })
+                        }
                     }
                 }
-            }
-            .buttonStyle(.plain)
-
-            if expanded {
-                Divider()
-                ForEach(sessions) { session in
-                    HStack {
-                        Text(session.label)
-                            .font(.caption)
-                            .foregroundColor(Palette.ink)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        Spacer()
-                        Text(compact(session.counts.total))
-                            .font(.caption)
-                            .foregroundColor(Palette.inkDim)
-                    }
-                }
+                let entry = entries[safeIndex]
+                Text(entry.label.uppercased())
+                    .font(.caption2)
+                    .foregroundColor(Palette.inkDim)
+                    .lineLimit(1)
+                Text("\(grouped(entry.counts.total)) tokens")
+                    .font(.system(.body, design: .rounded).bold())
+                    .foregroundColor(Palette.ink)
+                Text(breakdownLine(entry.counts))
+                    .font(.caption)
+                    .foregroundColor(Palette.inkDim)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -196,6 +198,71 @@ struct ActiveSessionsCard: View {
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(Palette.panel))
+    }
+}
+
+/// A left-aligned flow layout that wraps its subviews onto new rows — used so
+/// any number of session tabs fits the fixed-width popover without scrolling.
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var widest: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > maxWidth && x > 0 {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+            widest = max(widest, x - spacing)
+        }
+        return CGSize(width: min(maxWidth, widest), height: y + rowHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > bounds.maxX && x > bounds.minX {
+                x = bounds.minX
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+    }
+}
+
+/// A pill tab for one session; clay when selected, cream otherwise.
+struct SessionTab: View {
+    let label: String
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .font(.caption).bold()
+                .lineLimit(1)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(selected ? Palette.clay : Palette.cream))
+                .foregroundColor(selected ? Palette.cream : Palette.ink)
+        }
+        .buttonStyle(.plain)
     }
 }
 
